@@ -1,0 +1,4 @@
+virtualenv/
+aioredisearch.egg-info/
+tags
+__pycache__/

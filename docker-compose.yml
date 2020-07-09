@@ -1,0 +1,16 @@
+version: "2.4"
+
+services:
+  aioredisearch-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    entrypoint:
+      - sh
+      - -c
+      - "poetry install && script/test-continuous"
+    restart: on-failure
+    tty: true
+    volumes:
+      - ./:/code:rw
