@@ -1,11 +1,16 @@
 version: "2.4"
 
+volumes:
+  aioredisearch-storage:
+
 services:
   aioredisearch-tests:
     build:
       context: .
       dockerfile: Dockerfile
       target: dev
+    depends_on:
+      - redis
     entrypoint:
       - sh
       - -c
@@ -14,3 +19,10 @@ services:
     tty: true
     volumes:
       - ./:/code:rw
+
+  redis:
+    image: redislabs/redisearch:latest
+    ports:
+      - ${AIOREDISEARCH_PORT:-6379}:6379
+    volumes:
+      - aioredisearch-storage:/data
