@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from enum import unique, Enum
-from typing import Any, List, Iterable, Optional, Sequence, Tuple, Union, TYPE_CHECKING
+from typing import Any, List, Optional, Sequence, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from aredis import StrictRedis  # type: ignore
@@ -33,16 +35,22 @@ class FieldParameters(Enum):
 		return str(self.value)
 
 
-class Field:
-	_parameters: Tuple[Any, ...]
-	_name: str
+class Field(List[str]):
+	def __init__(self, name: str, /, *parameters: Any, no_index: bool = False, sortable: bool = False) -> None:
+		super().__init__()
+		if not sortable and no_index:
+			raise ValueError('Fields must be sortable or be indexed')
 
-	def __init__(self, name: str, /, *parameters: Any) -> None:
-		self._name = name
-		self._parameters = parameters
+		param: Any
+		_parameters: List[str] = list([str(param) for param in parameters])
 
-	def __iter__(self) -> Iterable[Any]:
-		return iter(list((self._name, *self._parameters)))
+		if sortable:
+			_parameters.append(str(FieldParameters.SORTABLE))
+		if no_index:
+			_parameters.append(str(FieldParameters.NOINDEX))
+
+		self.append(name)
+		self.extend(_parameters)
 
 
 class GeoField(Field):
@@ -56,14 +64,7 @@ class GeoField(Field):
 	"""
 	def __init__(self, name: str, /, *, no_index: bool = False, sortable: bool = False) -> None:
 		parameters: List[str] = [str(FieldTypes.GEO)]
-		if sortable:
-			parameters.append(str(FieldParameters.SORTABLE))
-		if no_index:
-			parameters.append(str(FieldParameters.NOINDEX))
-
-		if not sortable and no_index:
-			raise ValueError('Fields must be sortable or be indexed')
-		super().__init__(name, *parameters)
+		super().__init__(name, *parameters, no_index=no_index, sortable=sortable)
 
 
 class NumericField(Field):
@@ -77,14 +78,7 @@ class NumericField(Field):
 	"""
 	def __init__(self, name: str, /, *, no_index: bool = False, sortable: bool = False) -> None:
 		parameters: List[str] = [str(FieldTypes.NUMERIC)]
-		if sortable:
-			parameters.append(str(FieldParameters.SORTABLE))
-		if no_index:
-			parameters.append(str(FieldParameters.NOINDEX))
-
-		if not sortable and no_index:
-			raise ValueError('Fields must be sortable or be indexed')
-		super().__init__(name, *parameters)
+		super().__init__(name, *parameters, no_index=no_index, sortable=sortable)
 
 
 class TagField(Field):
@@ -104,14 +98,7 @@ class TagField(Field):
 			if len(separator) > 1:
 				raise ValueError(f'Separator longer than one character: {separator!r}')
 			parameters.extend([str(FieldParameters.SEPARATOR), separator])
-		if sortable:
-			parameters.append(str(FieldParameters.SORTABLE))
-		if no_index:
-			parameters.append(str(FieldParameters.NOINDEX))
-
-		if not sortable and no_index:
-			raise ValueError('Fields must be sortable or be indexed')
-		super().__init__(name, *parameters)
+		super().__init__(name, *parameters, no_index=no_index, sortable=sortable)
 
 
 class TextField(Field):
@@ -148,7 +135,6 @@ class TextField(Field):
 		weight: Optional[Union[int, float]] = None
 	) -> None:
 		parameters: List[Any] = [str(FieldTypes.TEXT)]
-
 		if no_stem:
 			parameters.append(str(FieldParameters.NOSTEM))
 		if weight is not None:
@@ -157,14 +143,7 @@ class TextField(Field):
 			if phonetic_matcher not in VALID_PHONETIC_MATCHERS:
 				raise ValueError(f'Invalid phonetic matcher: {phonetic_matcher!r}')
 			parameters.extend([str(FieldParameters.PHONETIC), phonetic_matcher])
-		if sortable:
-			parameters.append(str(FieldParameters.SORTABLE))
-		if no_index:
-			parameters.append(str(FieldParameters.NOINDEX))
-
-		if not sortable and no_index:
-			raise ValueError('Fields must be sortable or be indexed')
-		super().__init__(name, *parameters)
+		super().__init__(name, *parameters, no_index=no_index, sortable=sortable)
 
 
 @unique
@@ -177,9 +156,13 @@ class FullTextCommands(Enum):
 
 @unique
 class CommandCreateParameters(Enum):
-	NOOFFSETS: str = 'NOOFFSETS'
+	MAXTEXTFIELDS: str = 'MAXTEXTFIELDS'
+	NOHL: str = 'NOHL'
 	NOFIELDS: str = 'NOFIELDS'
+	NOFREQS: str = 'NOFREQS'
+	NOOFFSETS: str = 'NOOFFSETS'
 	STOPWORDS: str = 'STOPWORDS'
+	TEMPORARY: str = 'TEMPORARY'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -202,23 +185,65 @@ class RediSearch:
 	async def create_index(
 		self,
 		*fields: Field,
-		no_term_offsets: bool = False,
-		no_field_flags: bool = False,
-		stopwords: Optional[Sequence[str]] = None
+		max_text_fields: bool = False,
+		no_fields: bool = False,
+		no_frequencies: bool = False,
+		no_highlights: bool = False,
+		no_offsets: bool = False,
+		stopwords: Optional[Sequence[str]] = None,
+		temporary: Union[float, int] = 0,
 	) -> None:
 		"""
-		Creates an index with the given spec.
+		Creates an index with the given spec. The index name will be used in all the
+		key names so keep it short!
+
+		Args:
+			fields: A sequence of fields for the index
+			max_text_fields: If set will force RediSearch to encode indexes as if there
+				were more than 32 text fields, which allows for adding additional fields
+				(beyond 32) using `RediSearch.alter_schema_add()`.
+				For efficiency RediSearch encodes indexes differently if they are
+				created with less than 32 text fields.
+			no_fields: If set no field bits will be stored for each term. Saves memory
+				but does not allow filtering by specific fields.
+			no_frequencies: If set term frequencies will not be stored on the index. This
+				saves memory but does not allow sorting based on the frequencies of a
+				given term within documents.
+			no_highlights: If set highlighting support will be disabled which
+				conserves storage space and memory. No corresponding byte offsets
+				will be stored for term positions. Implied by `no_offsets`.
+			no_offsets: If set no term offsets will be stored for documents.
+				Saves memory but does not allow exact searches or highlighting.
+				Implies `no_highlights`.
+			stopwords: If supplied the index will be set with a custom stopword list
+				to be ignored during indexing and search time.
+
+				If not supplied the default stopwords will be used.
+
+				If an empty sequence the created index will not have stopwords.
+			temporary: If non-zero the created index will expire after the specified
+				number of seconds of inactivity. The internal idle timer is reset whenever
+				the index is searched or added to. Because such indexes are lightweight
+				thousands of them can be created without negative performance implications.
 		"""
-		# command_args: List[Any] = [str(FullTextCommands.CREATE), self._index_name]
-		# if no_term_offsets:
-		#     command_args.append(str(CommandCreateParameters.NOOFFSETS))
-		# if no_field_flags:
-		#     command_args.append(str(CommandCreateParameters.NOFIELDS))
-		# if stopwords is not None:
-		#     command_args.extend([str(CommandCreateParameters.STOPWORDS), len(stopwords)])
-		#     if len(stopwords) > 0:
-		#         command_args.extend(stopwords)
-		# command_args.append(SCHEMA)
-		# f: Field
-		# command_args.extend(list(chain(*[f.parameters for f in fields])))
-		# return await self._redis.execute_command(*command_args)
+		command_args: List[Any] = [str(FullTextCommands.CREATE), self._index_name]
+		if max_text_fields:
+			command_args.append(str(CommandCreateParameters.MAXTEXTFIELDS))
+		if temporary > 0:
+			command_args.extend([str(CommandCreateParameters.TEMPORARY), str(temporary)])
+		if no_offsets:
+			command_args.append(str(CommandCreateParameters.NOOFFSETS))
+		if no_highlights:
+			command_args.append(str(CommandCreateParameters.NOHL))
+		if no_fields:
+			command_args.append(str(CommandCreateParameters.NOFIELDS))
+		if no_frequencies:
+			command_args.append(str(CommandCreateParameters.NOFREQS))
+		if stopwords is not None:
+			num: str = str(len(stopwords))
+			command_args.extend([str(CommandCreateParameters.STOPWORDS), num, *stopwords])
+		command_args.append(SCHEMA)
+		f: Field
+		x: Any
+		command_args.extend([x for f in fields for x in f])
+		return await self._redis.execute_command(*command_args)
