@@ -3,9 +3,21 @@ from __future__ import annotations
 from enum import unique, Enum
 from typing import Any, List, Optional, Sequence, Union, TYPE_CHECKING
 
+from aredis import ResponseError  # type: ignore
+
+from .exception import IndexExists
+
 if TYPE_CHECKING:
 	from aredis import StrictRedis  # type: ignore
 
+
+__all__: List[str] = [
+	'GeoField',
+	'NumericField',
+	'TagField',
+	'TextField',
+	'RediSearch',
+]
 
 SCHEMA: str = 'SCHEMA'
 VALID_PHONETIC_MATCHERS: List[str] = ['dm:en', 'dm:fr', 'dm:pt', 'dm:es']
@@ -194,7 +206,7 @@ class RediSearch:
 		temporary: Union[float, int] = 0,
 	) -> None:
 		"""
-		Creates an index with the given spec. The index name will be used in all the
+		Create an index with the given spec. The index name will be used in all the
 		key names so keep it short!
 
 		Args:
@@ -246,4 +258,9 @@ class RediSearch:
 		f: Field
 		x: Any
 		command_args.extend([x for f in fields for x in f])
-		return await self._redis.execute_command(*command_args)
+		try:
+			return await self._redis.execute_command(*command_args)
+		except ResponseError as ex:
+			if str(ex).lower() == 'index already exists':
+				raise IndexExists(self._index_name)
+			raise

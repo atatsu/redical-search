@@ -10,4 +10,4 @@ cd "$(dirname "$0")/.."
 export PYTHONASYNCIODEBUG=1
 export PYTHONWARNINGS=default
 
-ptw . --onpass "script/lint && script/type-check" --onfail "script/lint && script/type-check" -- -m "not integration" -vv -W error::UserWarning
+ptw .  -- -m integration -vv -W error::UserWarning

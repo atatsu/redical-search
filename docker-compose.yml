@@ -9,12 +9,26 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
+    entrypoint:
+      - sh
+      - -c
+      - "poetry install && script/test-continuous"
+    restart: on-failure
+    tty: true
+    volumes:
+      - ./:/code:rw
+
+  aioredisearch-integration-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
     depends_on:
       - redis
     entrypoint:
       - sh
       - -c
-      - "poetry install && script/test-continuous"
+      - "poetry install && script/test-integration-continuous"
     restart: on-failure
     tty: true
     volumes:
