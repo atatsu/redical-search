@@ -1,7 +1,17 @@
 import os
+from unittest import mock
 
 import pytest  # type: ignore
 from aredis import StrictRedis  # type: ignore
+
+from aioredisearch import RediSearch
+
+
+@pytest.fixture
+def redisearch():
+	def _redisearch(index_name):
+		return RediSearch(index_name, redis=mock.Mock(spec=StrictRedis))
+	return _redisearch
 
 
 @pytest.fixture

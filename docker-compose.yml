@@ -13,6 +13,8 @@ services:
       - sh
       - -c
       - "poetry install && script/test-continuous"
+    environment:
+      - PYTHONASYNCIODEBUG=1
     restart: on-failure
     tty: true
     volumes:
@@ -29,6 +31,8 @@ services:
       - sh
       - -c
       - "poetry install && script/test-integration-continuous"
+    environment:
+      - PYTHONASYNCIODEBUG=1
     restart: on-failure
     tty: true
     volumes:
