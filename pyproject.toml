@@ -8,6 +8,7 @@ authors = ["atatsu <nathan.lundquist@gmail.com>"]
 python = "^3.8"
 aredis = "^1.1.8"
 hiredis = "^1.0.1"
+pydantic = "^1.6.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

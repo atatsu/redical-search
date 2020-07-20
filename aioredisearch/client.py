@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 from enum import unique, Enum, IntFlag
-from typing import Any, ClassVar, List, Optional, Sequence, Tuple, Type, TypeVar, Union, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, TypeVar, Union, TYPE_CHECKING
 
 from aredis import ResponseError  # type: ignore
 
-from .exception import DocumentExists, IndexExists
+from .exception import DocumentExists, IndexExists, UnknownIndex
+from .model import IndexInfo
 
 if TYPE_CHECKING:
 	from aredis import StrictRedis  # type: ignore
@@ -23,6 +24,7 @@ LOG: logging.Logger = logging.getLogger(__name__)
 class ErrorResponses(Enum):
 	DOCUMENT_ALREADY_EXISTS: str = 'document already exists'
 	INDEX_ALREADY_EXISTS: str = 'index already exists'
+	UNKNOWN_INDEX: str = 'unknown index name'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -32,6 +34,7 @@ class ErrorResponses(Enum):
 class FullTextCommands(Enum):
 	ADD: str = 'FT.ADD'
 	CREATE: str = 'FT.CREATE'
+	INFO: str = 'FT.INFO'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -306,3 +309,25 @@ class RediSearch:
 			if str(ex).lower() == str(ErrorResponses.INDEX_ALREADY_EXISTS):
 				raise IndexExists(self._index_name)
 			raise
+
+	async def info(
+		self
+	) -> IndexInfo:
+		"""
+		Returns information and statistics on the index. Returned values include:
+			* number of documents
+			* number of distinct terms
+			* average bytes per record
+			* size and capacity of the index buffers
+		"""
+		command: List[str] = [str(FullTextCommands.INFO), self._index_name]
+		LOG.debug(f'executing command: {" ".join(command)}')
+		try:
+			res: List[Any] = await self._redis.execute_command(*command)
+		except ResponseError as ex:
+			if str(ex).lower() == str(ErrorResponses.UNKNOWN_INDEX):
+				raise UnknownIndex(self._index_name)
+			raise
+		x: int
+		mapped: Dict[str, Any] = {res[x]: res[x + 1] for x in range(0, len(res), 2)}
+		return IndexInfo(**mapped)
