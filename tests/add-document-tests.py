@@ -29,7 +29,10 @@ from aioredisearch import RediSearch
 				*dict(foo='bar baz', bar='baz', baz=1234).items()
 			),
 			dict(no_save=True),
-			['FT.ADD', 'shakespeare', 'adocid', '1.0', 'NOSAVE', 'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234']
+			[
+				'FT.ADD', 'shakespeare', 'adocid', '1.0', 'NOSAVE',
+				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+			]
 		),
 		(
 			(
@@ -37,7 +40,10 @@ from aioredisearch import RediSearch
 				*dict(foo='bar baz', bar='baz', baz=1234).items()
 			),
 			dict(replace=RediSearch.ReplaceOptions.DEFAULT),
-			['FT.ADD', 'shakespeare', 'adocid', '1.0', 'REPLACE', 'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234']
+			[
+				'FT.ADD', 'shakespeare', 'adocid', '1.0', 'REPLACE',
+				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+			]
 		),
 		(
 			(

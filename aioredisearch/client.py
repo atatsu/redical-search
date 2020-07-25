@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import logging
-from enum import unique, Enum, IntFlag
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, TypeVar, Union, TYPE_CHECKING
+from enum import auto, unique, Enum, Flag
+from typing import (
+	Any,
+	ClassVar,
+	Dict,
+	List,
+	Optional,
+	Sequence,
+	Tuple,
+	Type,
+	TypeVar,
+	Union,
+	TYPE_CHECKING,
+)
 
 from aredis import ResponseError  # type: ignore
+from pydantic import BaseModel
 
 from .exception import DocumentExists, IndexExists, UnknownIndex
 from .model import IndexInfo
@@ -35,6 +48,7 @@ class FullTextCommands(Enum):
 	ADD: str = 'FT.ADD'
 	CREATE: str = 'FT.CREATE'
 	INFO: str = 'FT.INFO'
+	SEARCH: str = 'FT.SEARCH'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -71,6 +85,41 @@ class CommandAddParameters(Enum):
 
 
 @unique
+class CommandSearchParameters(Enum):
+	ASC: str = 'ASC'
+	DESC: str = 'DESC'
+	EXPANDER: str = 'EXPANDER'
+	FIELDS: str = 'FIELDS'
+	FILTER: str = 'FILTER'
+	FRAGS: str = 'FRAGS'
+	GEOFILTER: str = 'GEOFILTER'
+	HIGHLIGHT: str = 'HIGHLIGHT'
+	INFIELDS: str = 'INFIELDS'
+	INKEYS: str = 'INKEYS'
+	INORDER: str = 'INORDER'
+	LANGUAGE: str = 'LANGUAGE'
+	LEN: str = 'LEN'
+	LIMIT: str = 'LIMIT'
+	NOCONTENT: str = 'NOCONTENT'
+	NOSTOPWORDS: str = 'NOSTOPWORDS'
+	PAYLOAD: str = 'PAYLOAD'
+	RETURN: str = 'RETURN'
+	SCORER: str = 'SCORER'
+	SEPARATOR: str = 'SEPARATOR'
+	SLOP: str = 'SLOP'
+	SORTBY: str = 'SORTBY'
+	SUMMARIZE: str = 'SUMMARIZE'
+	TAGS: str = 'TAGS'
+	WITHPAYLOADS: str = 'WITHPAYLOADS'
+	WITHSCORES: str = 'WITHSCORES'
+	WITHSORTKEYS: str = 'WITHSORTKEYS'
+	VERBATIM: str = 'VERBATIM'
+
+	def __str__(self) -> str:
+		return str(self.value)
+
+
+@unique
 class Languages(Enum):
 	ARABIC: str = 'arabic'
 	CHINESE: str = 'chinese'
@@ -95,10 +144,103 @@ class Languages(Enum):
 		return str(self.value)
 
 
-class ReplaceOptions(IntFlag):
-	DEFAULT: int = 4
-	PARTIAL: int = 2
-	NO_CREATE: int = 1
+class ReplaceOptions(Flag):
+	DEFAULT = auto()
+	PARTIAL = auto()
+	NO_CREATE = auto()
+
+
+class SearchFlags(Flag):
+	ASC = auto()
+	DESC = auto()
+	EXPLAIN_SCORE = auto()
+	IN_ORDER = auto()
+	NO_CONTENT = auto()
+	VERBATIM = auto()
+	NO_STOPWORDS = auto()
+	WITH_SCORES = auto()
+	WITH_PAYLOADS = auto()
+	WITH_SORT_KEYS = auto()
+
+
+class GeoFilterUnits(Enum):
+	FEET: str = 'ft'
+	KILOMETERS: str = 'km'
+	METERS: str = 'm'
+	MILES: str = 'mi'
+
+	def __str__(self) -> str:
+		return str(self.value)
+
+
+class GeoFilter(BaseModel):
+	Units: ClassVar[Type[GeoFilterUnits]] = GeoFilterUnits
+
+	field: str
+	latitude: float
+	longitude: float
+	radius: float
+	units: GeoFilterUnits
+
+
+class Highlight(BaseModel):
+	"""
+	Highlighting will highlight the found term (and its variants) with a user-defined tag.
+	This may be used to display the matched text in a different typeface using a markup
+	language, or to otherwise make the text appear differently.
+	"""
+	field_names: Optional[Sequence[str]]
+	"""
+	Each field supplied is highlighted. If not specified then *all* fields are highlighted.
+	"""
+	open_tag: Optional[str]
+	"""
+	The opening tag to prepend to each term match.
+	"""
+	close_tag: Optional[str]
+	"""
+	The closing tag to append to each term match.
+	"""
+
+
+class NumericFilterFlags(Flag):
+	EXCLUSIVE_MAX = auto()
+	EXCLUSIVE_MIN = auto()
+
+
+class NumericFilter(BaseModel):
+	Flags: ClassVar[Type[NumericFilterFlags]] = NumericFilterFlags
+
+	field: str
+	maximum: Optional[float]
+	minimum: Optional[float]
+	flags: Optional[NumericFilterFlags]
+
+
+class Summarize(BaseModel):
+	"""
+	Summarization will fragment the text into smaller sized snippets. Each snippet will
+	contain the found term(s) and some additional surrounding context.
+	"""
+	field_names: Optional[Sequence[str]]
+	"""
+	Each field supplied is summarized. If not specified then *all* fields are summarized.
+	"""
+	fragment_total: Optional[int]
+	"""
+	Dictates how many fragments should be returned. If not specified the default value is `3`.
+	"""
+	fragment_length: Optional[int]
+	"""
+	The number of context words each fragment should contain. Context words surround
+	the found term. A higher value will return a larger block of text. If not specified
+	the default value is `20`.
+	"""
+	separator: Optional[str]
+	"""
+	The string used to divide between individual summary snippets. The default is `...`
+	which is common among search engines.
+	"""
 
 
 class RediSearch:
@@ -141,28 +283,28 @@ class RediSearch:
 				`no_save` is set.
 			language: If supplied a stemmer for the chosen language is used during indexing.
 				The following languages are supported:
-					* arabic
-					* chinese
-					* danish
-					* dutch
-					* english
-					* finnish
-					* french
-					* german
-					* hungarian
-					* italian
-					* norwegian
-					* portuguese
-					* romanian
-					* russian
-					* spanish
-					* swedish
-					* tamil
-					* turkish
+					* `Languages.ARABIC`
+					* `Languages.CHINESE`
+					* `Languages.DANISH`
+					* `Languages.DUTCH`
+					* `Languages.ENGLISH`
+					* `Languages.FINNISH`
+					* `Languages.FRENCH`
+					* `Languages.GERMAN`
+					* `Languages.HUNGARIAN`
+					* `Languages.ITALIAN`
+					* `Languages.NORWEGIAN`
+					* `Languages.PORTUGUESE`
+					* `Languages.ROMANIAN`
+					* `Languages.RUSSIAN`
+					* `Languages.SPANISH`
+					* `Languages.SWEDISH`
+					* `Languages.TAMIL`
+					* `Languages.TURKISH`
 
 				Note:
-					If indexing a Chinese language document the language **must** be set to 'chinese'
-					in order for the Chinese characters to be tokenized properly.
+					If indexing a Chinese language document the language **must** be set to
+					`Languages.CHINESE` in order for the Chinese characters to be tokenized properly.
 			no_save: If set the document will not be saved in the index but only indexed.
 			payload: Optionally provide a binary safe payload string that can be evaluated at query
 				time by a custom scoring function.
@@ -232,9 +374,6 @@ class RediSearch:
 				raise DocumentExists(doc_id)
 			raise
 
-	Languages: ClassVar[Type[Languages]] = Languages
-	ReplaceOptions: ClassVar[Type[ReplaceOptions]] = ReplaceOptions
-
 	async def create_index(
 		self,
 		*fields: 'Field',
@@ -251,7 +390,7 @@ class RediSearch:
 		key names so keep it short!
 
 		Args:
-			fields: A sequence of fields for the index
+			fields: A sequence of fields for the index.
 			max_text_fields: If set will force RediSearch to encode indexes as if there
 				were more than 32 text fields, which allows for adding additional fields
 				(beyond 32) using `RediSearch.alter_schema_add()`.
@@ -331,3 +470,237 @@ class RediSearch:
 		x: int
 		mapped: Dict[str, Any] = {res[x]: res[x + 1] for x in range(0, len(res), 2)}
 		return IndexInfo(**mapped)
+
+	async def search(
+		self,
+		query: str,
+		/,
+		*,
+		expander: Optional[str] = None,
+		flags: Optional[SearchFlags] = None,
+		geo_filter: Optional[GeoFilter] = None,
+		highlight: Optional[Highlight] = None,
+		in_keys: Optional[Sequence[str]] = None,
+		in_fields: Optional[Any] = None,
+		language: Optional[Languages] = None,
+		limit: Optional[Tuple[int, int]] = None,
+		numeric_filter: Optional[Sequence[NumericFilter]] = None,
+		payload: Optional[str] = None,
+		return_fields: Optional[Sequence[str]] = None,
+		scorer: Optional[str] = None,
+		slop: Optional[int] = None,
+		sort_by: Optional[str] = None,
+		summarize: Optional[Summarize] = None,
+	) -> None:
+		"""
+		Searches the index with a textual query.
+
+		Args:
+			query: The text query to search.
+			expander: Use a custom query expander instead of the stemmer.
+
+				Note: See https://oss.redislabs.com/redisearch/Extensions/
+			flags: `SearchFlags`
+				* `SearchFlags.EXPLAIN_SCORE`: Return a textual description of how the scores
+					were calculated. Only relevant in conjunction with `SearchFlags.WITH_SCORES`
+					or `scorer`.
+				* `SearchFlags.IN_ORDER`: Used in conjunction with `slop`, will cause the query
+					terms to appear in the same order in the document as in the query,
+					regardless of the offsets between them.
+				* `SearchFlags.NO_CONTENT`: Only return the document ids and not the content.
+				* `SearchFlags.NO_STOPWORDS`: Do not filter stopwords from the query.
+				* `SearchFlags.VERBATIM`: Try not to use stemming for query expansion. Instead
+					search the query terms verbatim.
+				* `SearchFlags.WITH_PAYLOADS`: Retrieve optional document payloads (see
+					`RediSearch.add_document`). The payloads follow the document id, and if
+					`SearchFlags.WITH_SCORES` was set, follow the scores.
+				* `SearchFlags.WITH_SCORES`: Return the relative internal score of each document.
+					This can be used to merge results from multiple instances.
+				* `SearchFlags.WITH_SORT_KEYS`: Only relevant in conjunction with `sort_by`.
+					Returns the value of the sorting key, right after the id and score and/or
+					payload if requested. This is usually not needed by users and exists for
+					distributed search coordination purposes.
+			geo_filter: Filter the results to a given radius from the supplied longitude and latitude.
+			highlight: Format occurrences of matched text.
+
+				Note: See https://oss.redislabs.com/redisearch/Highlight/
+			in_keys: Limit the result to a given set of keys. Non-existent keys are ignored -
+				unless all the keys are non-existent.
+			in_fields: Filter the results to those matching the supplied `query` **only** in specific
+				fields of the document.
+			language: If supplied a stemmer for the chosen language is used during search for
+				query expansion. Defaults to English. The following languages are supported:
+					* `Languages.ARABIC`
+					* `Languages.CHINESE`
+					* `Languages.DANISH`
+					* `Languages.DUTCH`
+					* `Languages.ENGLISH`
+					* `Languages.FINNISH`
+					* `Languages.FRENCH`
+					* `Languages.GERMAN`
+					* `Languages.HUNGARIAN`
+					* `Languages.ITALIAN`
+					* `Languages.NORWEGIAN`
+					* `Languages.PORTUGUESE`
+					* `Languages.ROMANIAN`
+					* `Languages.RUSSIAN`
+					* `Languages.SPANISH`
+					* `Languages.SWEDISH`
+					* `Languages.TAMIL`
+					* `Languages.TURKISH`
+
+				Note:
+					If querying documents in Chinese, this should be set to `Languages.CHINESE` in
+					order to properly tokenize the query terms.
+			limit: Limit the results to the supplied offset and count in the form of `(offset, count)`.
+
+				Note:
+					You can use `(0, 0)` to count the number of documents in the result set without
+					actually returning them.
+			numeric_filter: Limit results to those having numeric values ranging between the supplied
+				minimum and maximum values. If no minimum is supplied `-inf` will be used. If no
+				maximum is supplied `+inf` will be used.
+
+				Note: Only applies to numeric fields.
+			payload: Add an arbitrary binary safe payload that will be exposed to custom scoring
+				functions.
+
+				Note: See https://oss.redislabs.com/redisearch/Extensions/
+			return_fields: Limits which fields are returned from the document.
+			scorer: Use a custom scoring function.
+
+				Note: See https://oss.redislabs.com/redisearch/Extensions/
+			slop: Allow a maximum of *N* intervening number of unmatched offsets between phrase
+				terms (the slop for exact phrases is 0).
+			sort_by: If used and the supplied field was marked as sortable during index creation
+				the results are ordered by the value of this field. Can also use the following
+				`flags` to affect sort order:
+					* `SearchFlags.ASC`
+					* `SearchFlags.DESC`
+
+				Note: This applies to numeric, tag, and text fields.
+			summarize: Only return the sections of the field which contain the matched text.
+
+				Note: See https://oss.redislabs.com/redisearch/Highlight/
+		"""
+		# kwargs are handled in the order they appear in the `FT.SEARCH` docs:
+		# https://oss.redislabs.com/redisearch/Commands/#ftsearch
+		command: List[Any] = [str(FullTextCommands.SEARCH), self._index_name, repr(query)]
+		if flags is not None:
+			if SearchFlags.NO_CONTENT in flags:
+				command.append(str(CommandSearchParameters.NOCONTENT))
+			if SearchFlags.VERBATIM in flags:
+				command.append(str(CommandSearchParameters.VERBATIM))
+			if SearchFlags.NO_STOPWORDS in flags:
+				command.append(str(CommandSearchParameters.NOSTOPWORDS))
+			if SearchFlags.WITH_SCORES in flags:
+				command.append(str(CommandSearchParameters.WITHSCORES))
+			if SearchFlags.WITH_PAYLOADS in flags:
+				command.append(str(CommandSearchParameters.WITHPAYLOADS))
+			if SearchFlags.WITH_SORT_KEYS in flags:
+				command.append(str(CommandSearchParameters.WITHSORTKEYS))
+
+		if numeric_filter is not None:
+			filter_: NumericFilter
+			for filter_ in numeric_filter:
+				flags_: Optional[NumericFilterFlags] = filter_.flags
+				args: List[Any] = [str(CommandSearchParameters.FILTER), filter_.field]
+				min_: Optional[Union[float, str]] = filter_.minimum
+				if min_ is not None and flags_ is not None and NumericFilterFlags.EXCLUSIVE_MIN in flags_:
+					min_ = f'({min_}'
+				args.append(min_ if min_ is not None else '-inf')
+				max_: Optional[Union[float, str]] = filter_.maximum
+				if max_ is not None and flags_ is not None and NumericFilterFlags.EXCLUSIVE_MAX in flags_:
+					max_ = f'({max_}'
+				args.append(max_ if max_ is not None else '+inf')
+				command.extend(args)
+
+		if geo_filter is not None:
+			# FIXME: Ensure `GeoFilter`
+			command.extend([
+				str(CommandSearchParameters.GEOFILTER),
+				geo_filter.field,
+				geo_filter.longitude,
+				geo_filter.latitude,
+				geo_filter.radius,
+				str(geo_filter.units)
+			])
+
+		if in_keys is not None:
+			# FIXME: Throw error if len() < 0?
+			_in_keys: Tuple[str, ...] = tuple(in_keys)
+			command.extend([str(CommandSearchParameters.INKEYS), len(_in_keys), *_in_keys])
+
+		if in_fields is not None:
+			# FIXME: Throw error if len() < 0?
+			_in_fields: Tuple[str, ...] = tuple(in_fields)
+			command.extend([str(CommandSearchParameters.INFIELDS), len(_in_fields), *_in_fields])
+
+		if return_fields is not None:
+			_return_fields: Tuple[str, ...] = tuple(return_fields)
+			command.extend([str(CommandSearchParameters.RETURN), len(_return_fields), *_return_fields])
+
+		fields: Tuple[str, ...]
+
+		if summarize is not None:
+			command.append(str(CommandSearchParameters.SUMMARIZE))
+			if summarize.field_names is not None:
+				fields = tuple(summarize.field_names)
+				command.extend([str(CommandSearchParameters.FIELDS), len(fields), *fields])
+			if summarize.fragment_total is not None:
+				command.extend([str(CommandSearchParameters.FRAGS), int(summarize.fragment_total)])
+			if summarize.fragment_length is not None:
+				command.extend([str(CommandSearchParameters.LEN), int(summarize.fragment_length)])
+			if summarize.separator is not None:
+				command.extend([str(CommandSearchParameters.SEPARATOR), repr(summarize.separator)])
+
+		if highlight is not None:
+			command.append(str(CommandSearchParameters.HIGHLIGHT))
+			if highlight.field_names is not None:
+				fields = tuple(highlight.field_names)
+				command.extend([str(CommandSearchParameters.FIELDS), len(fields), *fields])
+			# FIXME: Throw error if one is not none but the other is?
+			if highlight.close_tag is not None and highlight.open_tag is not None:
+				command.extend([str(CommandSearchParameters.TAGS), str(highlight.open_tag), str(highlight.close_tag)])
+
+		if slop is not None:
+			command.extend([str(CommandSearchParameters.SLOP), int(slop)])
+		# Intentionally allowing INORDER through even if SLOP isn't used as the docs make it sound like
+		# it is only "usually" used with SLOP, so we can use it without?
+		if flags is not None and SearchFlags.IN_ORDER in flags:
+			command.append(str(CommandSearchParameters.INORDER))
+
+		if language is not None:
+			command.extend([str(CommandSearchParameters.LANGUAGE), str(language)])
+
+		if expander is not None:
+			command.extend([str(CommandSearchParameters.EXPANDER), expander])
+
+		if scorer is not None:
+			command.extend([str(CommandSearchParameters.SCORER), scorer])
+
+		if payload is not None:
+			command.extend([str(CommandSearchParameters.PAYLOAD), payload])
+
+		if sort_by is not None:
+			command.extend([str(CommandSearchParameters.SORTBY), sort_by])
+			if flags is not None and SearchFlags.ASC in flags:
+				command.append(str(CommandSearchParameters.ASC))
+			elif flags is not None and SearchFlags.DESC in flags:
+				command.append(str(CommandSearchParameters.DESC))
+
+		if limit is not None:
+			offset: int
+			count: int
+			offset, count = (int(limit[0]), int(limit[1]))
+			command.extend([str(CommandSearchParameters.LIMIT), offset, count])
+
+		await self._redis.execute_command(*command)
+
+	GeoFilter: ClassVar[Type[GeoFilter]] = GeoFilter
+	Highlight: ClassVar[Type[Highlight]] = Highlight
+	Languages: ClassVar[Type[Languages]] = Languages
+	NumericFilter: ClassVar[Type[NumericFilter]] = NumericFilter
+	ReplaceOptions: ClassVar[Type[ReplaceOptions]] = ReplaceOptions
+	SearchFlags: ClassVar[Type[SearchFlags]] = SearchFlags
+	Summarize: ClassVar[Type[Summarize]] = Summarize

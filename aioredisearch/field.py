@@ -44,6 +44,7 @@ class Field(List[str]):
 		param: Any
 		_parameters: List[str] = list([str(param) for param in parameters])
 
+		# FIXME: Only apply this to numeric, tag, and text fields
 		if sortable:
 			_parameters.append(str(FieldParameters.SORTABLE))
 		if no_index:
