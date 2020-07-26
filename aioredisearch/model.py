@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Sequence
 
 from pydantic import validator, BaseModel, Field
 
-__all__: List[str] = ['IndexInfo']
+__all__: List[str] = ['IndexInfo', 'SearchResult']
 
 
 class IndexInfo(BaseModel):
@@ -27,3 +27,40 @@ class IndexInfo(BaseModel):
 				options=field_options
 			)
 		return field_defs
+
+
+class SearchResult(BaseModel):
+	results: List[Dict[str, Any]]
+	"""
+	The documents returned by the query, structured as the following:
+		[
+			{
+				document_id: <id>,
+				document: {
+					<field>: <value>,
+					<field>: <value>,
+					...
+				}
+			},
+			...
+		]
+	"""
+	count: int
+	"""
+	The number of results contained within this result object.
+	"""
+	limit: int = 0
+	"""
+	The limit count applied while limiting the returned results of the query.
+	"""
+	offset: int = 0
+	"""
+	The offset applied while limiting the returned results of the query.
+	"""
+	total: int
+	"""
+	The total number of results based on the executed query.
+	"""
+
+	class Config:
+		allow_mutation: bool = False

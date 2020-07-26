@@ -20,7 +20,7 @@ from aredis import ResponseError  # type: ignore
 from pydantic import BaseModel
 
 from .exception import DocumentExists, IndexExists, UnknownIndex
-from .model import IndexInfo
+from .model import IndexInfo, SearchResult
 
 if TYPE_CHECKING:
 	from aredis import StrictRedis  # type: ignore
@@ -491,7 +491,7 @@ class RediSearch:
 		slop: Optional[int] = None,
 		sort_by: Optional[str] = None,
 		summarize: Optional[Summarize] = None,
-	) -> None:
+	) -> SearchResult:
 		"""
 		Searches the index with a textual query.
 
@@ -689,13 +689,27 @@ class RediSearch:
 			elif flags is not None and SearchFlags.DESC in flags:
 				command.append(str(CommandSearchParameters.DESC))
 
+		offset: int = 0
+		limit_: int = 0
 		if limit is not None:
-			offset: int
-			count: int
-			offset, count = (int(limit[0]), int(limit[1]))
-			command.extend([str(CommandSearchParameters.LIMIT), offset, count])
+			offset, limit_ = (int(limit[0]), int(limit[1]))
+			command.extend([str(CommandSearchParameters.LIMIT), offset, limit_])
 
-		await self._redis.execute_command(*command)
+		LOG.debug(f'executing command: {" ".join(map(str, command))}')
+		raw_results: List[Any] = await self._redis.execute_command(*command)
+		total: int = raw_results[0]
+		x: int
+		y: int
+		mapped: List[Dict[str, Any]] = [
+			dict(
+				document_id=raw_results[x],
+				document={
+					raw_results[x + 1][y]: raw_results[x + 1][y + 1] for y in range(0, len(raw_results[x + 1]), 2)
+				}
+			)
+			for x in range(1, len(raw_results[1:]), 2)
+		]
+		return SearchResult(results=mapped, count=len(mapped), total=total, offset=offset, limit=limit_)
 
 	GeoFilter: ClassVar[Type[GeoFilter]] = GeoFilter
 	Highlight: ClassVar[Type[Highlight]] = Highlight

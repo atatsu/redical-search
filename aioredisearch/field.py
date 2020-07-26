@@ -58,6 +58,9 @@ class GeoField(Field):
 	"""
 	Defines a geo-indexing field in a schema definition.
 
+	Note:
+		When adding documents geo format is *x,y*, or *longitude,latitude*.
+
 	Args:
 		name: A name for this field.
 		no_index: If set this field will not be indexed.
