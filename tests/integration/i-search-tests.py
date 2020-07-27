@@ -16,10 +16,10 @@ def joined():
 async def client(redis, joined):
 	client = RediSearch('users', redis=redis)
 	await client.create_index(
-		TextField('username', sortable=True, no_stem=True),
-		NumericField('joined', sortable=True),
+		TextField('username', TextField.SORTABLE | TextField.NO_STEM),
+		NumericField('joined', NumericField.SORTABLE),
 		GeoField('location'),
-		TextField('password_hash', no_stem=True),
+		TextField('password_hash', TextField.NO_STEM),
 		TextField('phrase'),
 	)
 	day = timedelta(days=1).total_seconds()

@@ -23,10 +23,10 @@ def client(redis):
 @pytest.mark.asyncio
 async def test_create_index(client, redis):
 	await client.create_index(
-		TextField('line', sortable=True),
-		TextField('play', no_stem=True),
-		NumericField('speech', sortable=True),
-		TextField('speaker', no_stem=True),
+		TextField('line', TextField.SORTABLE),
+		TextField('play', TextField.NO_STEM),
+		NumericField('speech', NumericField.SORTABLE),
+		TextField('speaker', TextField.NO_STEM),
 		TextField('entry'),
 		GeoField('location'),
 	)
@@ -37,9 +37,9 @@ async def test_create_index(client, redis):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_index_already_exists(client):
-	await client.create_index(TextField('line', sortable=True))
+	await client.create_index(TextField('line', TextField.SORTABLE))
 	with pytest.raises(IndexExists, match='shakespeare'):
-		await client.create_index(TextField('line', sortable=True))
+		await client.create_index(TextField('line', TextField.SORTABLE))
 # ]
 
 
@@ -48,7 +48,7 @@ async def test_create_index_already_exists(client):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_info(client):
-	await client.create_index(TextField('line', sortable=True), NumericField('page', sortable=True))
+	await client.create_index(TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE))
 	info = await client.info()
 	assert isinstance(info, IndexInfo)
 	assert 'shakespeare' == info.name
@@ -77,7 +77,7 @@ async def test_info_no_index(redis):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_add_document(client, redis):
-	await client.create_index(TextField('line', sortable=True))
+	await client.create_index(TextField('line', TextField.SORTABLE))
 	await client.add_document('adocid', ('line', 'i said stuff'), ('anotherfield', 'with a value'))
 	assert True is await redis.exists('adocid')
 	index_info = await client.info()
@@ -87,14 +87,8 @@ async def test_add_document(client, redis):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_add_document_exists(client):
-	await client.create_index(TextField('line', sortable=True))
+	await client.create_index(TextField('line', TextField.SORTABLE))
 	await client.add_document('adocid', ('line', 'some lines'))
 	with pytest.raises(DocumentExists, match='adocid'):
 		await client.add_document('adocid', ('line', 'more lines'))
-# ]
-
-
-# |-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|
-# FT.SEARCH [
-
 # ]

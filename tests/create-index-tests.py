@@ -65,10 +65,10 @@ from aioredisearch import GeoField, NumericField, TextField
 		),
 		(
 			(
-				TextField('line', sortable=True),
-				TextField('play', no_stem=True),
-				NumericField('speech', sortable=True),
-				TextField('speaker', no_stem=True),
+				TextField('line', TextField.SORTABLE),
+				TextField('play', TextField.NO_STEM),
+				NumericField('speech', TextField.SORTABLE),
+				TextField('speaker', TextField.NO_STEM),
 				TextField('entry'),
 				GeoField('location')
 			),
