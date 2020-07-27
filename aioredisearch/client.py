@@ -19,6 +19,13 @@ from typing import (
 from aredis import ResponseError  # type: ignore
 from pydantic import BaseModel
 
+from .const import (
+	CommandAddParameters,
+	CommandCreateParameters,
+	CommandSearchParameters,
+	ErrorResponses,
+	FullTextCommands,
+)
 from .exception import DocumentExists, IndexExists, UnknownIndex
 from .model import IndexInfo, SearchResult
 
@@ -28,95 +35,55 @@ if TYPE_CHECKING:
 	Field = TypeVar('Field', bound=BaseField)
 
 
-__all__: List[str] = ['RediSearch']
+__all__: List[str] = [
+	'CreateFlags',
+	'GeoFilter',
+	'GeoFilterUnits',
+	'Highlight',
+	'Languages',
+	'NumericFilter',
+	'NumericFilterFlags',
+	'ReplaceOptions',
+	'RediSearch',
+	'SearchFlags',
+	'Summarize',
+]
 
 LOG: logging.Logger = logging.getLogger(__name__)
 
 
-@unique
-class ErrorResponses(Enum):
-	DOCUMENT_ALREADY_EXISTS: str = 'document already exists'
-	INDEX_ALREADY_EXISTS: str = 'index already exists'
-	UNKNOWN_INDEX: str = 'unknown index name'
+class CreateFlags(Flag):
+	MAX_TEXT_FIELDS = auto()
+	"""
+	If set will force *RediSearch* to encode indexes as if there were more than 32 text fields,
+	which allows for adding additional fields (beyond 32) using `RediSearch.alter_schema_add()`.
+	For efficiency *RediSearch* encodes indexes differently if they are created with less than 32
+	text fields.
+	"""
+	NO_FIELDS = auto()
+	"""
+	If set no field bits will be stored for each term. Saves memory but does not allow filtering
+	by specific fields.
+	"""
+	NO_FREQUENCIES = auto()
+	"""
+	If set term frequencies will not be stored on the index. This saves memory but does not allow
+	sorting based on the frequencies of a given term within documents.
+	"""
+	NO_HIGHLIGHTS = auto()
+	"""
+	If set highlighting support will be disabled which conserves storage space and memory. No
+	corresponding byte offsets will be stored for term positions.
 
-	def __str__(self) -> str:
-		return str(self.value)
+	Note: Implied by `CreateFlags.NO_OFFSETS`.
+	"""
+	NO_OFFSETS = auto()
+	"""
+	If set no term offsets will be stored for documents.  Saves memory but does not allow exact
+	searches or highlighting.
 
-
-@unique
-class FullTextCommands(Enum):
-	ADD: str = 'FT.ADD'
-	CREATE: str = 'FT.CREATE'
-	INFO: str = 'FT.INFO'
-	SEARCH: str = 'FT.SEARCH'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-@unique
-class CommandCreateParameters(Enum):
-	MAXTEXTFIELDS: str = 'MAXTEXTFIELDS'
-	NOHL: str = 'NOHL'
-	NOFIELDS: str = 'NOFIELDS'
-	NOFREQS: str = 'NOFREQS'
-	NOOFFSETS: str = 'NOOFFSETS'
-	STOPWORDS: str = 'STOPWORDS'
-	SCHEMA: str = 'SCHEMA'
-	TEMPORARY: str = 'TEMPORARY'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-@unique
-class CommandAddParameters(Enum):
-	FIELDS: str = 'FIELDS'
-	IF: str = 'IF'
-	LANGUAGE: str = 'LANGUAGE'
-	NOCREATE: str = 'NOCREATE'
-	NOSAVE: str = 'NOSAVE'
-	PARTIAL: str = 'PARTIAL'
-	PAYLOAD: str = 'PAYLOAD'
-	REPLACE: str = 'REPLACE'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-@unique
-class CommandSearchParameters(Enum):
-	ASC: str = 'ASC'
-	DESC: str = 'DESC'
-	EXPANDER: str = 'EXPANDER'
-	FIELDS: str = 'FIELDS'
-	FILTER: str = 'FILTER'
-	FRAGS: str = 'FRAGS'
-	GEOFILTER: str = 'GEOFILTER'
-	HIGHLIGHT: str = 'HIGHLIGHT'
-	INFIELDS: str = 'INFIELDS'
-	INKEYS: str = 'INKEYS'
-	INORDER: str = 'INORDER'
-	LANGUAGE: str = 'LANGUAGE'
-	LEN: str = 'LEN'
-	LIMIT: str = 'LIMIT'
-	NOCONTENT: str = 'NOCONTENT'
-	NOSTOPWORDS: str = 'NOSTOPWORDS'
-	PAYLOAD: str = 'PAYLOAD'
-	RETURN: str = 'RETURN'
-	SCORER: str = 'SCORER'
-	SEPARATOR: str = 'SEPARATOR'
-	SLOP: str = 'SLOP'
-	SORTBY: str = 'SORTBY'
-	SUMMARIZE: str = 'SUMMARIZE'
-	TAGS: str = 'TAGS'
-	WITHPAYLOADS: str = 'WITHPAYLOADS'
-	WITHSCORES: str = 'WITHSCORES'
-	WITHSORTKEYS: str = 'WITHSORTKEYS'
-	VERBATIM: str = 'VERBATIM'
-
-	def __str__(self) -> str:
-		return str(self.value)
+	Note: Implies `CreateFlags.NO_HIGHLIGHTS`.
+	"""
 
 
 @unique
@@ -377,11 +344,7 @@ class RediSearch:
 	async def create_index(
 		self,
 		*fields: 'Field',
-		max_text_fields: bool = False,
-		no_fields: bool = False,
-		no_frequencies: bool = False,
-		no_highlights: bool = False,
-		no_offsets: bool = False,
+		flags: Optional[CreateFlags] = None,
 		stopwords: Optional[Sequence[str]] = None,
 		temporary: Union[float, int] = 0,
 	) -> None:
@@ -391,25 +354,12 @@ class RediSearch:
 
 		Args:
 			fields: A sequence of fields for the index.
-			max_text_fields: If set will force RediSearch to encode indexes as if there
-				were more than 32 text fields, which allows for adding additional fields
-				(beyond 32) using `RediSearch.alter_schema_add()`.
-				For efficiency RediSearch encodes indexes differently if they are
-				created with less than 32 text fields.
-			no_fields: If set no field bits will be stored for each term. Saves memory
-				but does not allow filtering by specific fields.
-			no_frequencies: If set term frequencies will not be stored on the index. This
-				saves memory but does not allow sorting based on the frequencies of a
-				given term within documents.
-			no_highlights: If set highlighting support will be disabled which
-				conserves storage space and memory. No corresponding byte offsets
-				will be stored for term positions.
-
-				Implied by `no_offsets`.
-			no_offsets: If set no term offsets will be stored for documents.
-				Saves memory but does not allow exact searches or highlighting.
-
-				Implies `no_highlights`.
+			flags: The following flags are accepted:
+				* `CreateFlags.MAX_TEXT_FIELDS`
+				* `CreateFlags.NO_FIELDS`
+				* `CreateFlags.NO_FREQUENCIES`
+				* `CreateFlags.NO_HIGHLIGHTS`
+				* `CreateFlags.NO_OFFSETS`
 			stopwords: If supplied the index will be set with a custom stopword list
 				to be ignored during indexing and search time.
 
@@ -422,18 +372,19 @@ class RediSearch:
 				thousands of them can be created without negative performance implications.
 		"""
 		command: List[Any] = [str(FullTextCommands.CREATE), self._index_name]
-		if max_text_fields:
-			command.append(str(CommandCreateParameters.MAXTEXTFIELDS))
+		if flags is not None and CreateFlags.MAX_TEXT_FIELDS in flags:
+				command.append(str(CommandCreateParameters.MAXTEXTFIELDS))
 		if temporary > 0:
 			command.extend([str(CommandCreateParameters.TEMPORARY), str(temporary)])
-		if no_offsets:
-			command.append(str(CommandCreateParameters.NOOFFSETS))
-		if no_highlights:
-			command.append(str(CommandCreateParameters.NOHL))
-		if no_fields:
-			command.append(str(CommandCreateParameters.NOFIELDS))
-		if no_frequencies:
-			command.append(str(CommandCreateParameters.NOFREQS))
+		if flags is not None:
+			if CreateFlags.NO_OFFSETS in flags:
+				command.append(str(CommandCreateParameters.NOOFFSETS))
+			if CreateFlags.NO_HIGHLIGHTS in flags:
+				command.append(str(CommandCreateParameters.NOHL))
+			if CreateFlags.NO_FIELDS in flags:
+				command.append(str(CommandCreateParameters.NOFIELDS))
+			if CreateFlags.NO_FREQUENCIES in flags:
+				command.append(str(CommandCreateParameters.NOFREQS))
 		if stopwords is not None:
 			num: str = str(len(stopwords))
 			command.extend([str(CommandCreateParameters.STOPWORDS), num, *stopwords])
@@ -711,6 +662,7 @@ class RediSearch:
 		]
 		return SearchResult(results=mapped, count=len(mapped), total=total, offset=offset, limit=limit_)
 
+	CreateFlags: ClassVar[Type[CreateFlags]] = CreateFlags
 	GeoFilter: ClassVar[Type[GeoFilter]] = GeoFilter
 	Highlight: ClassVar[Type[Highlight]] = Highlight
 	Languages: ClassVar[Type[Languages]] = Languages

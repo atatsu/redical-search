@@ -1,7 +1,7 @@
 from enum import auto, unique, Enum, Flag
 from typing import Any, ClassVar, List, Optional, Type, Union
 
-VALID_PHONETIC_MATCHERS: List[str] = ['dm:en', 'dm:fr', 'dm:pt', 'dm:es']
+from .const import FieldParameters, FieldTypes
 
 __all__: List[str] = [
 	'FieldFlags',
@@ -11,30 +11,6 @@ __all__: List[str] = [
 	'TagField',
 	'TextField',
 ]
-
-
-@unique
-class FieldTypes(Enum):
-	GEO: str = 'GEO'
-	NUMERIC: str = 'NUMERIC'
-	TAG: str = 'TAG'
-	TEXT: str = 'TEXT'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-@unique
-class FieldParameters(Enum):
-	NOINDEX: str = 'NOINDEX'
-	NOSTEM: str = 'NOSTEM'
-	PHONETIC: str = 'PHONETIC'
-	SEPARATOR: str = 'SEPARATOR'
-	SORTABLE: str = 'SORTABLE'
-	WEIGHT: str = 'WEIGHT'
-
-	def __str__(self) -> str:
-		return str(self.value)
 
 
 class FieldFlags(Flag):

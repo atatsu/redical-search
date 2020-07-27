@@ -1,6 +1,6 @@
 import pytest  # type: ignore
 
-from aioredisearch import GeoField, NumericField, TextField
+from aioredisearch import GeoField, NumericField, RediSearch, TextField
 
 
 @pytest.mark.asyncio
@@ -9,7 +9,7 @@ from aioredisearch import GeoField, NumericField, TextField
 	[
 		(
 			(TextField('myfield'),),
-			dict(max_text_fields=True),
+			dict(flags=RediSearch.CreateFlags.MAX_TEXT_FIELDS),
 			['FT.CREATE', 'shakespeare', 'MAXTEXTFIELDS', 'SCHEMA', 'myfield', 'TEXT']
 		),
 		(
@@ -19,22 +19,22 @@ from aioredisearch import GeoField, NumericField, TextField
 		),
 		(
 			(TextField('myfield'),),
-			dict(no_offsets=True),
+			dict(flags=RediSearch.CreateFlags.NO_OFFSETS),
 			['FT.CREATE', 'shakespeare', 'NOOFFSETS', 'SCHEMA', 'myfield', 'TEXT']
 		),
 		(
 			(TextField('myfield'),),
-			dict(no_highlights=True),
+			dict(flags=RediSearch.CreateFlags.NO_HIGHLIGHTS),
 			['FT.CREATE', 'shakespeare', 'NOHL', 'SCHEMA', 'myfield', 'TEXT']
 		),
 		(
 			(TextField('myfield'),),
-			dict(no_fields=True),
+			dict(flags=RediSearch.CreateFlags.NO_FIELDS),
 			['FT.CREATE', 'shakespeare', 'NOFIELDS', 'SCHEMA', 'myfield', 'TEXT']
 		),
 		(
 			(TextField('myfield'),),
-			dict(no_frequencies=True),
+			dict(flags=RediSearch.CreateFlags.NO_FREQUENCIES),
 			['FT.CREATE', 'shakespeare', 'NOFREQS', 'SCHEMA', 'myfield', 'TEXT']
 		),
 		(
@@ -50,11 +50,11 @@ from aioredisearch import GeoField, NumericField, TextField
 		(
 			(TextField('myfield'),),
 			dict(
-				max_text_fields=True,
-				no_fields=True,
-				no_frequencies=True,
-				no_highlights=True,
-				no_offsets=True,
+				flags=RediSearch.CreateFlags.MAX_TEXT_FIELDS
+				| RediSearch.CreateFlags.NO_FIELDS  # noqa:W503
+				| RediSearch.CreateFlags.NO_FREQUENCIES  # noqa:W503
+				| RediSearch.CreateFlags.NO_HIGHLIGHTS  # noqa:W503
+				| RediSearch.CreateFlags.NO_OFFSETS,  # noqa:W503
 				stopwords=['one'],
 				temporary=3
 			),
