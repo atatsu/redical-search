@@ -1,8 +1,8 @@
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Type
 
-from pydantic import validator, BaseModel, Field
+from pydantic import root_validator, validator, BaseModel, Field
 
-__all__: List[str] = ['IndexInfo', 'SearchResult']
+__all__: List[str] = ['Document', 'DocumentWrap', 'IndexInfo', 'SearchResult']
 
 
 class IndexInfo(BaseModel):
@@ -28,22 +28,43 @@ class IndexInfo(BaseModel):
 			)
 		return field_defs
 
+	class Config:
+		allow_mutation: bool = False
+
+
+class Document(BaseModel):
+	class Config:
+		allow_mutation: bool = False
+
+
+class DocumentWrap(BaseModel):
+	id: str = Field(..., alias='document_id')
+	# We technically allow subclasses of `Document` for `document` in place of a dict
+	# but we're handling it in the root validator as it is being magically applied via
+	# the `_document_cls` dict entry that gets added from `RediSearch.search()` via a kwarg.
+	document: Dict[str, Any]
+
+	@root_validator
+	def check_model(cls, values):
+		if 'document' not in values or '_document_cls' not in values['document']:
+			return values
+
+		if '_document_cls' in values['document'] and values['document']['_document_cls'] is None:
+			del values['document']['_document_cls']
+			return values
+
+		doc_cls: Type[Document] = values['document']['_document_cls']
+		values['document'] = doc_cls(**values['document'])
+		return values
+
+	class Config:
+		allow_mutation: bool = False
+
 
 class SearchResult(BaseModel):
-	results: List[Dict[str, Any]]
+	documents: List[DocumentWrap]
 	"""
-	The documents returned by the query, structured as the following:
-		[
-			{
-				document_id: <id>,
-				document: {
-					<field>: <value>,
-					<field>: <value>,
-					...
-				}
-			},
-			...
-		]
+	The documents returned by the query.
 	"""
 	count: int
 	"""

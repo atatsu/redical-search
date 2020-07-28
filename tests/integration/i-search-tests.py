@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest  # type: ignore
 
-from aioredisearch import GeoField, NumericField, RediSearch, SearchResult, TextField
+from aioredisearch import Document, DocumentWrap, GeoField, NumericField, RediSearch, SearchResult, TextField
 
 
 @pytest.fixture
@@ -48,23 +48,6 @@ async def client(redis, joined):
 	return client
 
 
-# @pytest.mark.integration
-# @pytest.mark.asyncio
-# async def test_basic_search(client, joined):
-#     pytest.fail('boo')
-#     # result = await client.search('arenthop')
-#     days = timedelta(days=4).total_seconds()
-#     result = await client.search(f'@joined:[{joined} {joined + days}]')
-#     print(result)
-#     assert isinstance(result, SearchResult)
-#     assert 3 == result.total
-#     assert 3 == result.count
-#     assert 0 == result.limit
-#     assert 0 == result.offset
-#     # result = await client.search('(@username:pethroul)(@password_hash:secret2)')
-#     # result = await client.search('hello world')
-
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -75,9 +58,39 @@ async def client(redis, joined):
 	],
 )
 async def test_basic_search(query, kwargs, expected_total, expected_count, expected_offset, expected_limit, client):
-	result = await client.search(query, **kwargs)
-	assert isinstance(result, SearchResult)
-	assert expected_total == result.total
-	assert expected_count == result.count
-	assert expected_offset == result.offset
-	assert expected_limit == result.limit
+	results = await client.search(query, **kwargs)
+	assert isinstance(results, SearchResult)
+	assert expected_total == results.total
+	assert expected_count == results.count
+	assert expected_offset == results.offset
+	assert expected_limit == results.limit
+	assert isinstance(results.documents[0], DocumentWrap)
+	assert isinstance(results.documents[0].document, dict)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_cleanup_document_cls(client, joined):
+	days = timedelta(days=4).total_seconds()
+	results = await client.search(f'(@joined:[{joined} {joined + days}])')
+	for entry in results.documents:
+		assert '_document_cls' not in entry.document
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_basic_search_model(client, joined):
+	class MyDocument(Document):
+		username: str
+		joined: datetime
+		phrase: str
+
+	days = timedelta(days=4).total_seconds()
+	results = await client.search(
+		f'(@joined:[{joined} {joined + days}])',
+		document_cls=MyDocument,
+		flags=client.SearchFlags.ASC,
+		sort_by='username',
+	)
+	assert isinstance(results.documents[0].document, MyDocument), type(results.documents[0].document)
+	assert results.documents[0].document.username == 'arenthop'

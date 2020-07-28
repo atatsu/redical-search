@@ -27,7 +27,7 @@ from .const import (
 	FullTextCommands,
 )
 from .exception import DocumentExists, IndexExists, UnknownIndex
-from .model import IndexInfo, SearchResult
+from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
 	from aredis import StrictRedis  # type: ignore
@@ -427,6 +427,7 @@ class RediSearch:
 		query: str,
 		/,
 		*,
+		document_cls: Optional[Type[Document]] = None,
 		expander: Optional[str] = None,
 		flags: Optional[SearchFlags] = None,
 		geo_filter: Optional[GeoFilter] = None,
@@ -448,6 +449,7 @@ class RediSearch:
 
 		Args:
 			query: The text query to search.
+			document_cls:
 			expander: Use a custom query expander instead of the stemmer.
 
 				Note: See https://oss.redislabs.com/redisearch/Extensions/
@@ -651,16 +653,27 @@ class RediSearch:
 		total: int = raw_results[0]
 		x: int
 		y: int
-		mapped: List[Dict[str, Any]] = [
+		# massage the results into the following format:
+		# [
+		#   {
+		#     'document_id': '<id>',
+		#     'document': {
+		#       '<field>': <value>,
+		#       ...
+		#     }
+		#     ...
+		#   }
+		# ]
+		formatted: List[Dict[str, Any]] = [
 			dict(
 				document_id=raw_results[x],
-				document={
+				document=dict(_document_cls=document_cls, **{
 					raw_results[x + 1][y]: raw_results[x + 1][y + 1] for y in range(0, len(raw_results[x + 1]), 2)
-				}
+				})
 			)
 			for x in range(1, len(raw_results[1:]), 2)
 		]
-		return SearchResult(results=mapped, count=len(mapped), total=total, offset=offset, limit=limit_)
+		return SearchResult(documents=formatted, count=len(formatted), total=total, offset=offset, limit=limit_)
 
 	CreateFlags: ClassVar[Type[CreateFlags]] = CreateFlags
 	GeoFilter: ClassVar[Type[GeoFilter]] = GeoFilter
