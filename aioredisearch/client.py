@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from enum import auto, unique, Enum, Flag
+from types import TracebackType
 from typing import (
 	Any,
 	ClassVar,
@@ -18,6 +19,7 @@ from typing import (
 
 from aredis import ResponseError  # type: ignore
 from pydantic import BaseModel
+from pydantic.dataclasses import dataclass
 
 from .const import (
 	CommandAddParameters,
@@ -30,13 +32,14 @@ from .exception import DocumentExists, IndexExists, UnknownIndex
 from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
-	from aredis import StrictRedis  # type: ignore
+	from aredis import StrictPipeline, StrictRedis  # type: ignore
 	from .field import Field as BaseField
 	Field = TypeVar('Field', bound=BaseField)
 
 
 __all__: List[str] = [
 	'CreateFlags',
+	'Geo',
 	'GeoFilter',
 	'GeoFilterUnits',
 	'Highlight',
@@ -84,6 +87,15 @@ class CreateFlags(Flag):
 
 	Note: Implies `CreateFlags.NO_HIGHLIGHTS`.
 	"""
+
+
+@dataclass
+class Geo:
+	latitude: float
+	longitude: float
+
+	def __str__(self) -> str:
+		return f'{self.longitude},{self.latitude}'
 
 
 @unique
@@ -226,10 +238,11 @@ class RediSearch:
 	def __init__(self, index_name: str, /, *, redis: 'StrictRedis') -> None:
 		self._index_name = index_name
 		self._redis = redis
+		setattr(self, 'add_document', _AddDocument(index_name, redis))
 
 	async def add_document(
 		self,
-		doc_id: str,
+		document_id: str,
 		/,
 		*fields: Tuple[str, Any],
 		language: Optional[Languages] = None,
@@ -243,7 +256,7 @@ class RediSearch:
 		Add a document to the index.
 
 		Args:
-			doc_id: The document's id that will be returned from searches.
+			document_id: The document's id that will be returned from searches.
 			fields: A sequence of field/value pairs to be indexed. Each field will be scored based
 				on the index spec given in `~RediSearch.create_index()`. Passing fields that are not
 				in the index spec will cause them to be stored as part of the document, or ignored if
@@ -300,46 +313,6 @@ class RediSearch:
 				Note:
 					This must be between 0.0 and 1.0.
 		"""
-		if not fields:
-			raise ValueError('Field/value pairs must be supplied')
-
-		command: List[Any] = [str(FullTextCommands.ADD), self._index_name, doc_id, str(score)]
-		if no_save:
-			command.append(str(CommandAddParameters.NOSAVE))
-		if isinstance(replace, ReplaceOptions):
-			if replace == ReplaceOptions.DEFAULT:
-				command.append(str(CommandAddParameters.REPLACE))
-			elif replace == ReplaceOptions.PARTIAL:
-				command.extend([str(CommandAddParameters.REPLACE), str(CommandAddParameters.PARTIAL)])
-			elif replace == ReplaceOptions.NO_CREATE:
-				command.extend([str(CommandAddParameters.REPLACE), str(CommandAddParameters.NOCREATE)])
-			elif ReplaceOptions.PARTIAL in replace and ReplaceOptions.NO_CREATE in replace:
-				command.extend([
-					str(CommandAddParameters.REPLACE),
-					str(CommandAddParameters.PARTIAL),
-					str(CommandAddParameters.NOCREATE)
-				])
-		if isinstance(language, Languages):
-			command.extend([str(CommandAddParameters.LANGUAGE), str(language)])
-		if payload is not None:
-			command.extend([str(CommandAddParameters.PAYLOAD), str(payload)])
-		if replace_condition is not None:
-			command.extend([str(CommandAddParameters.IF), repr(str(replace_condition))])
-		command.append(str(CommandAddParameters.FIELDS))
-		field: str
-		value: Any
-		for field, value in fields:
-			value = str(value)
-			if ' ' in value:
-				value = repr(value)
-			command.extend([field, value])
-		LOG.debug(f'executing command: {" ".join(command)}')
-		try:
-			await self._redis.execute_command(*command)
-		except ResponseError as ex:
-			if str(ex).lower() == str(ErrorResponses.DOCUMENT_ALREADY_EXISTS):
-				raise DocumentExists(doc_id)
-			raise
 
 	async def create_index(
 		self,
@@ -474,6 +447,11 @@ class RediSearch:
 					payload if requested. This is usually not needed by users and exists for
 					distributed search coordination purposes.
 			geo_filter: Filter the results to a given radius from the supplied longitude and latitude.
+
+				Note: Only applies to GEO fields.
+
+				Note: It is also possible to apply geo filtering via the actual query.
+					See https://oss.redislabs.com/redisearch/Query_Syntax/
 			highlight: Format occurrences of matched text.
 
 				Note: See https://oss.redislabs.com/redisearch/Highlight/
@@ -514,7 +492,10 @@ class RediSearch:
 				minimum and maximum values. If no minimum is supplied `-inf` will be used. If no
 				maximum is supplied `+inf` will be used.
 
-				Note: Only applies to numeric fields.
+				Note: Only applies to NUMERIC fields.
+
+				Note: It is also possible to apply numeric filtering via the actual query.
+					See https://oss.redislabs.com/redisearch/Query_Syntax/
 			payload: Add an arbitrary binary safe payload that will be exposed to custom scoring
 				functions.
 
@@ -683,3 +664,174 @@ class RediSearch:
 	ReplaceOptions: ClassVar[Type[ReplaceOptions]] = ReplaceOptions
 	SearchFlags: ClassVar[Type[SearchFlags]] = SearchFlags
 	Summarize: ClassVar[Type[Summarize]] = Summarize
+
+
+class AddDocumentPipeline:
+	_buffer_size: int
+	_command_count: int
+	_executed: int
+	_index_name: str
+	_pipe: 'StrictPipeline'
+	_redis: 'StrictRedis'
+
+	__slots__: List[str] = ['_buffer_size', '_command_count', '_executed', '_index_name', '_pipe', '_redis']
+
+	def __init__(self, index_name: str, redis: 'StrictRedis', batch_size: int) -> None:
+		self._command_count = 0
+		self._index_name = index_name
+		self._redis = redis
+		self._buffer_size = batch_size
+		self._executed = 0
+
+	async def __aenter__(self) -> AddDocumentPipeline:
+		self._pipe = await (await self._redis.pipeline()).__aenter__()
+		return self
+
+	async def __aexit__(
+		self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Optional[TracebackType]
+	) -> None:
+		if exc is None and self._command_count > 0:
+			try:
+				await self._pipe.execute()
+			except ResponseError as ex:
+				if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
+					LOG.exception(f'After adding {self._executed} buffered document(s), encountered error')
+					raise
+				LOG.warning(str(ex))
+
+		if exc is not None:
+			LOG.error(f'After adding {self._executed} buffered document(s), encountered error', exc_info=exc)
+		await self._pipe.__aexit__(exc_type, exc, tb)
+
+	async def __call__(
+		self,
+		document_id: str,
+		/,
+		*fields: Tuple[str, Any],
+		language: Optional[Languages] = None,
+		no_save: bool = False,
+		payload: Optional[str] = None,
+		replace: Optional[ReplaceOptions] = None,
+		replace_condition: Optional[str] = None,
+		score: Union[float, int] = 1.0,
+	) -> None:
+		command: List[Any] = _build_add_document_command(
+			self._index_name,
+			document_id,
+			*fields,
+			language=language,
+			no_save=no_save,
+			payload=payload,
+			replace=replace,
+			replace_condition=replace_condition,
+			score=score
+		)
+		await self._pipe.execute_command(*command)
+		self._command_count += 1
+		LOG.debug(f'queued command [{self._command_count}]: {" ".join(map(str, command))}')
+		if self._command_count >= self._buffer_size:
+			try:
+				await self._pipe.execute()
+				self._executed += self._command_count
+				self._command_count = 0
+			except ResponseError as ex:
+				if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
+					raise
+				LOG.warning(str(ex))
+
+
+class _AddDocument:
+	_index_name: str
+	_redis: 'StrictRedis'
+
+	__slots__: List[str] = ['_index_name', '_redis']
+
+	def __init__(self, index_name: str, redis: 'StrictRedis') -> None:
+		self._index_name = index_name
+		self._redis = redis
+
+	def batch(self, *, size: int = 1000) -> AddDocumentPipeline:
+		return AddDocumentPipeline(self._index_name, self._redis, size)
+
+	async def __call__(
+		self,
+		document_id: str,
+		/,
+		*fields: Tuple[str, Any],
+		language: Optional[Languages] = None,
+		no_save: bool = False,
+		payload: Optional[str] = None,
+		replace: Optional[ReplaceOptions] = None,
+		replace_condition: Optional[str] = None,
+		score: Union[float, int] = 1.0,
+	) -> None:
+		command: List[Any] = _build_add_document_command(
+			self._index_name,
+			document_id,
+			*fields,
+			language=language,
+			no_save=no_save,
+			payload=payload,
+			replace=replace,
+			replace_condition=replace_condition,
+			score=score
+		)
+		LOG.debug(f'executing command: {" ".join(map(str, command))}')
+		try:
+			await self._redis.execute_command(*command)
+		except ResponseError as ex:
+			if str(ex).lower() == str(ErrorResponses.DOCUMENT_ALREADY_EXISTS):
+				raise DocumentExists(document_id)
+			raise
+
+
+def _build_add_document_command(
+	index_name: str,
+	document_id: str,
+	*fields: Tuple[str, Any],
+	language: Optional[Languages],
+	no_save: bool,
+	payload: Optional[str],
+	replace: Optional[ReplaceOptions],
+	replace_condition: Optional[str],
+	score: Union[float, int]
+) -> List[Any]:
+	if not fields:
+		raise ValueError('Field/value pairs must be supplied')
+
+	score = float(score)
+	if score > 1:
+		LOG.warning(f'`score` value of {score} exceeds 1.0, reducing to 1.0')
+		score = 1.0
+	command: List[Any] = [str(FullTextCommands.ADD), index_name, document_id, score]
+	if no_save:
+		command.append(str(CommandAddParameters.NOSAVE))
+	if isinstance(replace, ReplaceOptions):
+		if replace == ReplaceOptions.DEFAULT:
+			command.append(str(CommandAddParameters.REPLACE))
+		elif replace == ReplaceOptions.PARTIAL:
+			command.extend([str(CommandAddParameters.REPLACE), str(CommandAddParameters.PARTIAL)])
+		elif replace == ReplaceOptions.NO_CREATE:
+			command.extend([str(CommandAddParameters.REPLACE), str(CommandAddParameters.NOCREATE)])
+		elif ReplaceOptions.PARTIAL in replace and ReplaceOptions.NO_CREATE in replace:
+			command.extend([
+				str(CommandAddParameters.REPLACE),
+				str(CommandAddParameters.PARTIAL),
+				str(CommandAddParameters.NOCREATE)
+			])
+	if isinstance(language, Languages):
+		command.extend([str(CommandAddParameters.LANGUAGE), str(language)])
+	if payload is not None:
+		command.extend([str(CommandAddParameters.PAYLOAD), str(payload)])
+	if replace_condition is not None:
+		command.extend([str(CommandAddParameters.IF), repr(str(replace_condition))])
+	command.append(str(CommandAddParameters.FIELDS))
+	field: str
+	value: Any
+	for field, value in fields:
+		value = str(value)
+		if ' ' in value:
+			value = repr(value)
+		command.extend([field, value])
+
+	return command

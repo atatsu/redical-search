@@ -8,9 +8,10 @@ from aioredisearch import RediSearch
 
 
 @pytest.fixture
-def redisearch():
+def mocked_redisearch():
 	def _redisearch(index_name):
-		return RediSearch(index_name, redis=mock.Mock(spec=StrictRedis))
+		mock_redis = mock.Mock(spec=StrictRedis)
+		return RediSearch(index_name, redis=mock_redis)
 	return _redisearch
 
 

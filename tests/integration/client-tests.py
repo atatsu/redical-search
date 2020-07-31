@@ -1,7 +1,6 @@
 import pytest  # type: ignore
 
 from aioredisearch import (
-	DocumentExists,
 	GeoField,
 	IndexExists,
 	IndexInfo,
@@ -69,26 +68,4 @@ async def test_info_no_index(redis):
 	client = RediSearch('nonexistent', redis=redis)
 	with pytest.raises(UnknownIndex, match='nonexistent'):
 		await client.info()
-# ]
-
-
-# |-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|
-# FT.ADD [
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_add_document(client, redis):
-	await client.create_index(TextField('line', TextField.SORTABLE))
-	await client.add_document('adocid', ('line', 'i said stuff'), ('anotherfield', 'with a value'))
-	assert True is await redis.exists('adocid')
-	index_info = await client.info()
-	assert 1 == index_info.number_of_documents
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_add_document_exists(client):
-	await client.create_index(TextField('line', TextField.SORTABLE))
-	await client.add_document('adocid', ('line', 'some lines'))
-	with pytest.raises(DocumentExists, match='adocid'):
-		await client.add_document('adocid', ('line', 'more lines'))
 # ]

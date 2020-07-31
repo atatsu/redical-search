@@ -23,28 +23,28 @@ async def client(redis, joined):
 		TextField('phrase'),
 	)
 	day = timedelta(days=1).total_seconds()
-	# FIXME: Update to pipeline usage when implemented
-	await client.add_document(
-		'user1',
-		*dict(
-			username='arenthop', joined=joined + day, location='-3.9264,57.5243', password_hash='secret1',
-			avatar='avatar1', phrase='hello world',
-		).items()
-	)
-	await client.add_document(
-		'user2',
-		*dict(
-			username='pethroul', joined=joined + day * 2, location='55.584,54.4435', password_hash='secret2',
-			avatar='avatar2', phrase='world hello',
-		).items(),
-	)
-	await client.add_document(
-		'user3',
-		*dict(
-			username='cobiumet', joined=joined + day * 3, location='23.7275,37.9838', password_hash='secret3',
-			avatar='avatar3', phrase='hello',
-		).items(),
-	)
+	async with client.add_document.batch() as add:
+		await add(
+			'user1',
+			*dict(
+				username='arenthop', joined=joined + day, location='-3.9264,57.5243', password_hash='secret1',
+				avatar='avatar1', phrase='hello world',
+			).items()
+		)
+		await add(
+			'user2',
+			*dict(
+				username='pethroul', joined=joined + day * 2, location='55.584,54.4435', password_hash='secret2',
+				avatar='avatar2', phrase='world hello',
+			).items(),
+		)
+		await add(
+			'user3',
+			*dict(
+				username='cobiumet', joined=joined + day * 3, location='23.7275,37.9838', password_hash='secret3',
+				avatar='avatar3', phrase='hello',
+			).items(),
+		)
 	return client
 
 

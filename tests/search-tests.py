@@ -262,7 +262,7 @@ from aioredisearch import RediSearch
 		'LIMIT',
 	]
 )
-async def test_search(args, kwargs, expected, redisearch):
-	client = redisearch('shakespeare')
+async def test_search(args, kwargs, expected, mocked_redisearch):
+	client = mocked_redisearch('shakespeare')
 	await client.search(*args, **kwargs)
 	client.redis.execute_command.assert_called_once_with(*expected)
