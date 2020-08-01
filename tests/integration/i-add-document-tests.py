@@ -1,7 +1,7 @@
 import pytest  # type: ignore
 from aredis import ResponseError  # type: ignore
 
-from aioredisearch import DocumentExists, GeoField, NumericField, RediSearch, TextField
+from aioredisearch import DocumentExistsError, GeoField, NumericField, RediSearch, TextField
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ async def test_add_document(client, redis):
 @pytest.mark.asyncio
 async def test_add_document_exists(client):
 	await client.add_document('adocid', *dict(username='arenthop', joined=123).items())
-	with pytest.raises(DocumentExists, match='adocid'):
+	with pytest.raises(DocumentExistsError, match='adocid'):
 		await client.add_document('adocid', *dict(username='arenthop', joined=123).items())
 
 

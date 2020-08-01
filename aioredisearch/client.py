@@ -28,7 +28,7 @@ from .const import (
 	ErrorResponses,
 	FullTextCommands,
 )
-from .exception import DocumentExists, IndexExists, UnknownIndex
+from .exception import DocumentExistsError, IndexExistsError, UnknownIndexError
 from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
@@ -370,7 +370,7 @@ class RediSearch:
 			await self._redis.execute_command(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.INDEX_ALREADY_EXISTS):
-				raise IndexExists(self._index_name)
+				raise IndexExistsError(self._index_name)
 			raise
 
 	async def info(
@@ -389,7 +389,7 @@ class RediSearch:
 			res: List[Any] = await self._redis.execute_command(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.UNKNOWN_INDEX):
-				raise UnknownIndex(self._index_name)
+				raise UnknownIndexError(self._index_name)
 			raise
 		x: int
 		mapped: Dict[str, Any] = {res[x]: res[x + 1] for x in range(0, len(res), 2)}
@@ -781,7 +781,7 @@ class _AddDocument:
 			await self._redis.execute_command(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.DOCUMENT_ALREADY_EXISTS):
-				raise DocumentExists(document_id)
+				raise DocumentExistsError(document_id)
 			raise
 
 
