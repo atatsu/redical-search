@@ -8,6 +8,9 @@ __all__: List[str] = ['Document', 'DocumentWrap', 'IndexInfo', 'SearchResult']
 class IndexInfo(BaseModel):
 	name: str = Field(..., alias='index_name')
 	options: List[str] = Field(..., alias='index_options')
+	# FIXME: `BaseModel.fields` is being deprecated in favor of `BaseModel.__fields__`;
+	#        once it is actually removed `field_defs` can be renamed to `fields` and the
+	#        alias can be removed.
 	field_defs: Dict[str, Dict[str, Any]] = Field(..., alias='fields')
 	number_of_documents: int = Field(..., alias='num_docs')
 	number_of_terms: int = Field(..., alias='num_terms')
