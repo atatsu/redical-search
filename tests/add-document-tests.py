@@ -16,7 +16,7 @@ from aioredisearch import RediSearch
 				*dict(foo='bar baz', bar='baz', baz=1234).items()
 			),
 			{},
-			['FT.ADD', 'shakespeare', 'adocid', 1.0, 'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'],
+			['FT.ADD', 'shakespeare', 'adocid', 1.0, 'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'],
 		),
 		(
 			(
@@ -24,7 +24,7 @@ from aioredisearch import RediSearch
 				*dict(foo='bar baz', bar='baz', baz=1234).items()
 			),
 			dict(score=5),
-			['FT.ADD', 'shakespeare', 'adocid', 1.0, 'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'],
+			['FT.ADD', 'shakespeare', 'adocid', 1.0, 'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'],
 		),
 		(
 			(
@@ -34,7 +34,7 @@ from aioredisearch import RediSearch
 			dict(no_save=True),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'NOSAVE',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -45,7 +45,7 @@ from aioredisearch import RediSearch
 			dict(replace=RediSearch.ReplaceOptions.DEFAULT),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'REPLACE',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -56,7 +56,7 @@ from aioredisearch import RediSearch
 			dict(replace=RediSearch.ReplaceOptions.PARTIAL),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'REPLACE', 'PARTIAL',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -67,7 +67,7 @@ from aioredisearch import RediSearch
 			dict(replace=RediSearch.ReplaceOptions.NO_CREATE),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'REPLACE', 'NOCREATE',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -78,7 +78,7 @@ from aioredisearch import RediSearch
 			dict(replace=RediSearch.ReplaceOptions.NO_CREATE | RediSearch.ReplaceOptions.PARTIAL),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'REPLACE', 'PARTIAL', 'NOCREATE',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -89,7 +89,7 @@ from aioredisearch import RediSearch
 			dict(language=RediSearch.Languages.RUSSIAN),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'LANGUAGE', 'russian',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -100,7 +100,7 @@ from aioredisearch import RediSearch
 			dict(payload='asdf'),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'PAYLOAD', 'asdf',
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -111,7 +111,7 @@ from aioredisearch import RediSearch
 			dict(replace_condition='@timestamp < 23323234234'),
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'IF', "'@timestamp < 23323234234'",
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 		(
@@ -130,7 +130,7 @@ from aioredisearch import RediSearch
 			[
 				'FT.ADD', 'shakespeare', 'adocid', 1.0, 'NOSAVE', 'REPLACE', 'PARTIAL', 'NOCREATE',
 				'LANGUAGE', 'swedish', 'PAYLOAD', 'asdf', 'IF', "'@timestamp < 23323234234'",
-				'FIELDS', 'foo', "'bar baz'", 'bar', 'baz', 'baz', '1234'
+				'FIELDS', 'foo', 'bar baz', 'bar', 'baz', 'baz', '1234'
 			]
 		),
 	]

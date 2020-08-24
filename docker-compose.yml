@@ -41,6 +41,6 @@ services:
   redis:
     image: redislabs/redisearch:latest
     ports:
-      - ${AIOREDISEARCH_PORT:-6379}:6379
+      - ${AIOREDISEARCH_PORT:-6479}:6379
     volumes:
       - aioredisearch-storage:/data

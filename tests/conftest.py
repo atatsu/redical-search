@@ -4,7 +4,7 @@ from unittest import mock
 import pytest  # type: ignore
 from aredis import StrictRedis  # type: ignore
 
-from aioredisearch import RediSearch
+from aioredisearch import RediSearch, TextField
 
 
 @pytest.fixture
@@ -15,6 +15,9 @@ def mocked_redisearch():
 	return _redisearch
 
 
+# |-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-
+# Fixtures for integration tests only
+
 @pytest.fixture
 async def redis():
 	host = os.environ.get('AIOREDISEARCH_REDIS_HOST', 'redis')
@@ -23,3 +26,13 @@ async def redis():
 	await redis.flushdb()
 	yield redis
 	redis.connection_pool.disconnect()
+
+
+@pytest.fixture
+async def client_with_index(redis):
+	client = RediSearch('users', redis=redis)
+	await client.create_index(
+		TextField('username', TextField.SORTABLE | TextField.NO_STEM),
+		TextField('real_name'),
+	)
+	return client

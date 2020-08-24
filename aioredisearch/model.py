@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Sequence, Type
+from typing import Any, Dict, List, Mapping, Sequence, Type
 
 from pydantic import root_validator, validator, BaseModel, Field
 
@@ -48,17 +48,18 @@ class DocumentWrap(BaseModel):
 	document: Dict[str, Any]
 
 	@root_validator
-	def check_model(cls, values):
-		if 'document' not in values or '_document_cls' not in values['document']:
-			return values
+	def check_model(cls, values: Mapping[str, Any]) -> Dict[str, Any]:
+		v: Dict[str, Any] = dict(values)
+		if 'document' not in v or '_document_cls' not in v['document']:
+			return v
 
-		if '_document_cls' in values['document'] and values['document']['_document_cls'] is None:
-			del values['document']['_document_cls']
-			return values
+		if '_document_cls' in v['document'] and v['document']['_document_cls'] is None:
+			del v['document']['_document_cls']
+			return v
 
-		doc_cls: Type[Document] = values['document']['_document_cls']
-		values['document'] = doc_cls(**values['document'])
-		return values
+		doc_cls: Type[Document] = v['document']['_document_cls']
+		v['document'] = doc_cls(**v['document'])
+		return v
 
 	class Config:
 		allow_mutation: bool = False

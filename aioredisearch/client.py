@@ -28,7 +28,7 @@ from .const import (
 	ErrorResponses,
 	FullTextCommands,
 )
-from .exception import DocumentExistsError, IndexExistsError, UnknownIndexError
+from .exception import DocumentExistsError, DocumentNotFoundError, IndexExistsError, UnknownIndexError
 from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
@@ -372,6 +372,29 @@ class RediSearch:
 			if str(ex).lower() == str(ErrorResponses.INDEX_ALREADY_EXISTS):
 				raise IndexExistsError(self._index_name)
 			raise
+
+	async def get_document(
+		self, document_id: str, /, *, document_cls: Optional[Type[Document]] = None
+	) -> Union[Document, Dict[str, str]]:
+		"""
+		Retrieve the full contents of a document.
+
+		Args:
+			document_id: The id of the document as inserted into the index.
+			document_cls: If supplied an instance of the supplied class will be returned
+				loaded up with the returned data (`document_cls(**doc)`). Otherwise a
+				dictionary is returned.
+		"""
+		command: List[str] = [str(FullTextCommands.GET), self._index_name, document_id]
+		LOG.debug(f'executing command: {" ".join(command)}')
+		raw: Optional[List[str]] = await self._redis.execute_command(*command)
+		if raw is None:
+			raise DocumentNotFoundError(document_id)
+		i: int
+		mapped: Dict[str, str] = {raw[i]: raw[i + 1] for i in range(0, len(raw), 2)}
+		if document_cls is not None:
+			return document_cls(**mapped)
+		return mapped
 
 	async def info(
 		self
@@ -830,8 +853,6 @@ def _build_add_document_command(
 	value: Any
 	for field, value in fields:
 		value = str(value)
-		if ' ' in value:
-			value = repr(value)
 		command.extend([field, value])
 
 	return command

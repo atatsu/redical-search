@@ -104,6 +104,7 @@ class FieldTypes(Enum):
 class FullTextCommands(Enum):
 	ADD: str = 'FT.ADD'
 	CREATE: str = 'FT.CREATE'
+	GET: str = 'FT.GET'
 	INFO: str = 'FT.INFO'
 	SEARCH: str = 'FT.SEARCH'
 
