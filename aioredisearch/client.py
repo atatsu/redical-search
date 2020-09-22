@@ -429,7 +429,7 @@ class RediSearch:
 		geo_filter: Optional[GeoFilter] = None,
 		highlight: Optional[Highlight] = None,
 		in_keys: Optional[Sequence[str]] = None,
-		in_fields: Optional[Any] = None,
+		in_fields: Optional[Sequence[str]] = None,
 		language: Optional[Languages] = None,
 		limit: Optional[Tuple[int, int]] = None,
 		numeric_filter: Optional[Sequence[NumericFilter]] = None,
