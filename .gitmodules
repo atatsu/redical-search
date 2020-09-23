@@ -1,0 +1,3 @@
+[submodule "lib/redical"]
+	path = lib/redical
+	url = git@bitbucket.org:atatsu/redical.git

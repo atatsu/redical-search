@@ -4,7 +4,7 @@ import pytest  # type: ignore
 @pytest.mark.asyncio
 async def test_info(mocked_redisearch):
 	client = mocked_redisearch('shakespeare')
-	client.redis.execute_command.return_value = [
+	client.redis.execute.return_value = [
 		'index_name',
 		'shakespeare',
 		'index_options',
@@ -19,4 +19,4 @@ async def test_info(mocked_redisearch):
 		'0',
 	]
 	await client.info()
-	client.redis.execute_command.assert_called_once_with('FT.INFO', 'shakespeare')
+	client.redis.execute.assert_called_once_with('FT.INFO', 'shakespeare')

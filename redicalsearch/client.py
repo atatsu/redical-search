@@ -17,7 +17,6 @@ from typing import (
 	TYPE_CHECKING,
 )
 
-from aredis import ResponseError  # type: ignore
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 
@@ -28,11 +27,14 @@ from .const import (
 	ErrorResponses,
 	FullTextCommands,
 )
+# FIXME
+from .exception import ResponseError
+
 from .exception import DocumentExistsError, DocumentNotFoundError, IndexExistsError, UnknownIndexError
 from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
-	from aredis import StrictPipeline, StrictRedis  # type: ignore
+	from redical import Redical, RedicalPipeline
 	from .field import Field as BaseField
 	Field = TypeVar('Field', bound=BaseField)
 
@@ -226,16 +228,16 @@ class RediSearch:
 	"""
 	"""
 	_index_name: str
-	_redis: 'StrictRedis'
+	_redis: 'Redical'
 
 	@property
-	def redis(self) -> 'StrictRedis':
+	def redis(self) -> 'Redical':
 		"""
 		A read-only property for accessing the redis client in use by this client.
 		"""
 		return self._redis
 
-	def __init__(self, index_name: str, /, *, redis: 'StrictRedis') -> None:
+	def __init__(self, index_name: str, /, *, redis: 'Redical') -> None:
 		self._index_name = index_name
 		self._redis = redis
 		setattr(self, 'add_document', _AddDocument(index_name, redis))
@@ -367,7 +369,7 @@ class RediSearch:
 		command.extend([x for f in fields for x in f])
 		LOG.debug(f'executing command: {" ".join(command)}')
 		try:
-			await self._redis.execute_command(*command)
+			await self._redis.execute(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.INDEX_ALREADY_EXISTS):
 				raise IndexExistsError(self._index_name)
@@ -387,7 +389,7 @@ class RediSearch:
 		"""
 		command: List[str] = [str(FullTextCommands.GET), self._index_name, document_id]
 		LOG.debug(f'executing command: {" ".join(command)}')
-		raw: Optional[List[str]] = await self._redis.execute_command(*command)
+		raw: Optional[List[str]] = await self._redis.execute(*command)
 		if raw is None:
 			raise DocumentNotFoundError(document_id)
 		i: int
@@ -409,7 +411,7 @@ class RediSearch:
 		command: List[str] = [str(FullTextCommands.INFO), self._index_name]
 		LOG.debug(f'executing command: {" ".join(command)}')
 		try:
-			res: List[Any] = await self._redis.execute_command(*command)
+			res: List[Any] = await self._redis.execute(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.UNKNOWN_INDEX):
 				raise UnknownIndexError(self._index_name)
@@ -653,7 +655,7 @@ class RediSearch:
 			command.extend([str(CommandSearchParameters.LIMIT), offset, limit_])
 
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		raw_results: List[Any] = await self._redis.execute_command(*command)
+		raw_results: List[Any] = await self._redis.execute(*command)
 		total: int = raw_results[0]
 		x: int
 		y: int
@@ -694,12 +696,12 @@ class AddDocumentPipeline:
 	_command_count: int
 	_executed: int
 	_index_name: str
-	_pipe: 'StrictPipeline'
-	_redis: 'StrictRedis'
+	_pipe: 'RedicalPipeline'
+	_redis: 'Redical'
 
 	__slots__: List[str] = ['_buffer_size', '_command_count', '_executed', '_index_name', '_pipe', '_redis']
 
-	def __init__(self, index_name: str, redis: 'StrictRedis', batch_size: int) -> None:
+	def __init__(self, index_name: str, redis: 'Redical', batch_size: int) -> None:
 		self._command_count = 0
 		self._index_name = index_name
 		self._redis = redis
@@ -707,7 +709,7 @@ class AddDocumentPipeline:
 		self._executed = 0
 
 	async def __aenter__(self) -> AddDocumentPipeline:
-		self._pipe = await (await self._redis.pipeline()).__aenter__()
+		self._pipe = await self._redis.__aenter__()
 		return self
 
 	async def __aexit__(
@@ -715,7 +717,7 @@ class AddDocumentPipeline:
 	) -> None:
 		if exc is None and self._command_count > 0:
 			try:
-				await self._pipe.execute()
+				await self._redis.__aexit__(exc_type, exc, tb)
 			except ResponseError as ex:
 				if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
 					LOG.exception(f'After adding {self._executed} buffered document(s), encountered error')
@@ -724,7 +726,6 @@ class AddDocumentPipeline:
 
 		if exc is not None:
 			LOG.error(f'After adding {self._executed} buffered document(s), encountered error', exc_info=exc)
-		await self._pipe.__aexit__(exc_type, exc, tb)
 
 	async def __call__(
 		self,
@@ -749,27 +750,28 @@ class AddDocumentPipeline:
 			replace_condition=replace_condition,
 			score=score
 		)
-		await self._pipe.execute_command(*command)
+		self._pipe.execute(*command)
 		self._command_count += 1
 		LOG.debug(f'queued command [{self._command_count}]: {" ".join(map(str, command))}')
-		if self._command_count >= self._buffer_size:
-			try:
-				await self._pipe.execute()
-				self._executed += self._command_count
-				self._command_count = 0
-			except ResponseError as ex:
-				if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
-					raise
-				LOG.warning(str(ex))
+		# FIXME: get rid of `batch_size` stuff
+		# if self._command_count >= self._buffer_size:
+		#     try:
+		#         await self._pipe.execute()
+		#         self._executed += self._command_count
+		#         self._command_count = 0
+		#     except ResponseError as ex:
+		#         if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
+		#             raise
+		#         LOG.warning(str(ex))
 
 
 class _AddDocument:
 	_index_name: str
-	_redis: 'StrictRedis'
+	_redis: 'Redical'
 
 	__slots__: List[str] = ['_index_name', '_redis']
 
-	def __init__(self, index_name: str, redis: 'StrictRedis') -> None:
+	def __init__(self, index_name: str, redis: 'Redical') -> None:
 		self._index_name = index_name
 		self._redis = redis
 
@@ -801,7 +803,7 @@ class _AddDocument:
 		)
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
 		try:
-			await self._redis.execute_command(*command)
+			await self._redis.execute(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.DOCUMENT_ALREADY_EXISTS):
 				raise DocumentExistsError(document_id)

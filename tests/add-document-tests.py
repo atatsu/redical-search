@@ -1,9 +1,9 @@
 from unittest import mock
 
 import pytest  # type: ignore
-from aredis.pipeline import StrictPipeline  # type: ignore
 
-from aioredisearch import RediSearch
+from redical import RedicalPipeline
+from redicalsearch import RediSearch
 
 
 @pytest.mark.asyncio
@@ -138,7 +138,7 @@ from aioredisearch import RediSearch
 async def test_add_document(args, kwargs, expected, mocked_redisearch):
 	client = mocked_redisearch('shakespeare')
 	await client.add_document(*args, **kwargs)
-	client.redis.execute_command.assert_called_once_with(*expected)
+	client.redis.execute.assert_called_once_with(*expected)
 
 
 @pytest.mark.asyncio
@@ -150,9 +150,9 @@ async def test_add_document_no_fields(mocked_redisearch):
 
 @pytest.fixture
 def mock_pipeline():
-	pipeline = mock.Mock(spec=StrictPipeline)
-	pipeline.__aenter__ = mock.AsyncMock(return_value=pipeline)
-	pipeline.__aexit__ = mock.AsyncMock(return_value=False)
+	pipeline = mock.Mock(spec=RedicalPipeline)
+	# pipeline.__aenter__ = mock.AsyncMock(return_value=pipeline)
+	# pipeline.__aexit__ = mock.AsyncMock(return_value=False)
 	return pipeline
 
 
@@ -160,13 +160,15 @@ def mock_pipeline():
 def mock_client_pipeline(mocked_redisearch, mock_pipeline):
 	def _redisearch(index_name):
 		client = mocked_redisearch(index_name)
-		client.redis.pipeline.return_value = mock_pipeline
+		client.redis.__aenter__ = mock.AsyncMock(return_value=mock_pipeline)
+		client.redis.__aexit__ = mock.AsyncMock(return_value=False)
 		return client
 	return _redisearch
 
 
 # Pipelining
 
+@pytest.mark.skip('get rid of pipeline batch stuff')
 @pytest.mark.asyncio
 async def test_default_batch(mock_client_pipeline, mock_pipeline):
 	client = mock_client_pipeline('shakespeare')
@@ -174,7 +176,7 @@ async def test_default_batch(mock_client_pipeline, mock_pipeline):
 		await add('adocid1', *dict(foo='bar', bar='baz').items())
 		await add('adocid2', *dict(foo='bar', bar='baz').items())
 		await add('adocid3', *dict(foo='bar', bar='baz').items())
-		mock_pipeline.execute_command.assert_has_calls([
+		mock_pipeline.execute.assert_has_calls([
 			mock.call('FT.ADD', 'shakespeare', 'adocid1', 1.0, 'FIELDS', 'foo', 'bar', 'bar', 'baz'),
 			mock.call('FT.ADD', 'shakespeare', 'adocid2', 1.0, 'FIELDS', 'foo', 'bar', 'bar', 'baz'),
 			mock.call('FT.ADD', 'shakespeare', 'adocid3', 1.0, 'FIELDS', 'foo', 'bar', 'bar', 'baz'),
@@ -183,6 +185,7 @@ async def test_default_batch(mock_client_pipeline, mock_pipeline):
 	mock_pipeline.execute.assert_called_once_with()
 
 
+@pytest.mark.skip('get rid of pipeline batch stuff')
 @pytest.mark.asyncio
 async def test_batch_size(mock_client_pipeline, mock_pipeline):
 	client = mock_client_pipeline('shakespeare')
@@ -190,7 +193,7 @@ async def test_batch_size(mock_client_pipeline, mock_pipeline):
 		await add('adocid1', *dict(foo='bar', bar='baz').items())
 		await add('adocid2', *dict(foo='bar', bar='baz').items())
 		await add('adocid3', *dict(foo='bar', bar='baz').items())
-		mock_pipeline.execute_command.assert_has_calls([
+		mock_pipeline.execute.assert_has_calls([
 			mock.call('FT.ADD', 'shakespeare', 'adocid1', 1.0, 'FIELDS', 'foo', 'bar', 'bar', 'baz'),
 			mock.call('FT.ADD', 'shakespeare', 'adocid2', 1.0, 'FIELDS', 'foo', 'bar', 'bar', 'baz'),
 			mock.call('FT.ADD', 'shakespeare', 'adocid3', 1.0, 'FIELDS', 'foo', 'bar', 'bar', 'baz'),

@@ -1,10 +1,10 @@
 version: "2.4"
 
 volumes:
-  aioredisearch-storage:
+  redical-search-storage:
 
 services:
-  aioredisearch-tests:
+  unit-tests:
     build:
       context: .
       dockerfile: Dockerfile
@@ -20,7 +20,7 @@ services:
     volumes:
       - ./:/code:rw
 
-  aioredisearch-integration-tests:
+  integration-tests:
     build:
       context: .
       dockerfile: Dockerfile
@@ -33,6 +33,7 @@ services:
       - "poetry install && script/test-integration-continuous"
     environment:
       - PYTHONASYNCIODEBUG=1
+      - REDICALSEARCH_REDIS_URI=redis://redis:6379
     restart: on-failure
     tty: true
     volumes:
@@ -41,6 +42,6 @@ services:
   redis:
     image: redislabs/redisearch:latest
     ports:
-      - ${AIOREDISEARCH_PORT:-6479}:6379
+      - ${REDICALSEARCH_REDIS_PORT:-6479}:6379
     volumes:
-      - aioredisearch-storage:/data
+      - redical-search-storage:/data

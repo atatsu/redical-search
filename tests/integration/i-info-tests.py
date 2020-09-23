@@ -1,11 +1,11 @@
 import pytest  # type: ignore
 
-from aioredisearch import IndexInfo, NumericField, RediSearch, TextField, UnknownIndexError
+from redicalsearch import IndexInfo, NumericField, RediSearch, TextField, UnknownIndexError
 
 
 @pytest.fixture
-def client(redis):
-	return RediSearch('shakespeare', redis=redis)
+def client(redical):
+	return RediSearch('shakespeare', redis=redical)
 
 
 @pytest.mark.integration
@@ -28,7 +28,7 @@ async def test_info(client):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_info_no_index(redis):
-	client = RediSearch('nonexistent', redis=redis)
+async def test_info_no_index(redical):
+	client = RediSearch('nonexistent', redis=redical)
 	with pytest.raises(UnknownIndexError, match='nonexistent'):
 		await client.info()

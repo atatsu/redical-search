@@ -21,7 +21,7 @@ if [ -n "$1" ]; then
   flake8 "$1"
   result=$?
 else
-  flake8 aioredisearch/ && flake8 tests/
+  flake8 redicalsearch/ && flake8 tests/
   result=$?
 fi
 echo -en ${normal}

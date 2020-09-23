@@ -1,16 +1,16 @@
 import pytest  # type: ignore
 
-from aioredisearch import GeoField, IndexExistsError, NumericField, RediSearch, TextField
+from redicalsearch import GeoField, IndexExistsError, NumericField, RediSearch, TextField
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 @pytest.fixture
-def client(redis):
-	return RediSearch('shakespeare', redis=redis)
+def client(redical):
+	return RediSearch('shakespeare', redis=redical)
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_create_index(client, redis):
+async def test_create_index(client, redical):
 	await client.create_index(
 		TextField('line', TextField.SORTABLE),
 		TextField('play', TextField.NO_STEM),
@@ -19,12 +19,9 @@ async def test_create_index(client, redis):
 		TextField('entry'),
 		GeoField('location'),
 	)
-	exists = await redis.exists('idx:shakespeare')
-	assert True is exists
+	assert 1 == await redical.exists('idx:shakespeare')
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 async def test_create_index_already_exists(client):
 	await client.create_index(TextField('line', TextField.SORTABLE))
 	with pytest.raises(IndexExistsError, match='shakespeare'):

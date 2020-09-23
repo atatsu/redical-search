@@ -1,6 +1,6 @@
 import pytest  # type: ignore
 
-from aioredisearch import Document, DocumentNotFoundError
+from redicalsearch import Document, DocumentNotFoundError
 
 
 @pytest.mark.integration

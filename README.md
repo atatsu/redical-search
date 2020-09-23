@@ -1,3 +1,3 @@
-aioredisearch
+redical-search
 =============
-An *asyncio* compatible port of the *redisearch-py* library.
+An *asyncio* compatible *RediSearch* client based on *redical*.

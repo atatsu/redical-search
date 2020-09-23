@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest  # type: ignore
 
-from aioredisearch import Document, DocumentWrap, GeoField, NumericField, RediSearch, SearchResult, TextField
+from redicalsearch import Document, DocumentWrap, GeoField, NumericField, RediSearch, SearchResult, TextField
 
 
 @pytest.fixture
@@ -13,8 +13,8 @@ def joined():
 
 
 @pytest.fixture
-async def client(redis, joined):
-	client = RediSearch('users', redis=redis)
+async def client(redical, joined):
+	client = RediSearch('users', redis=redical)
 	await client.create_index(
 		TextField('username', TextField.SORTABLE | TextField.NO_STEM),
 		NumericField('joined', NumericField.SORTABLE),

@@ -1,6 +1,6 @@
 import pytest  # type: ignore
 
-from aioredisearch import GeoField, FieldFlags, NumericField, TagField, TextField
+from redicalsearch import GeoField, FieldFlags, NumericField, TagField, TextField
 
 
 @pytest.mark.parametrize(

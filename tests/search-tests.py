@@ -1,6 +1,6 @@
 import pytest  # type: ignore
 
-from aioredisearch import RediSearch
+from redicalsearch import RediSearch
 
 
 @pytest.mark.asyncio
@@ -265,4 +265,4 @@ from aioredisearch import RediSearch
 async def test_search(args, kwargs, expected, mocked_redisearch):
 	client = mocked_redisearch('shakespeare')
 	await client.search(*args, **kwargs)
-	client.redis.execute_command.assert_called_once_with(*expected)
+	client.redis.execute.assert_called_once_with(*expected)

@@ -1,6 +1,6 @@
 import pytest  # type: ignore
 
-from aioredisearch import GeoField, NumericField, RediSearch, TextField
+from redicalsearch import GeoField, NumericField, RediSearch, TextField
 
 
 @pytest.mark.asyncio
@@ -83,4 +83,4 @@ from aioredisearch import GeoField, NumericField, RediSearch, TextField
 async def test_create_index(args, kwargs, expected, mocked_redisearch):
 	client = mocked_redisearch('shakespeare')
 	await client.create_index(*args, **kwargs)
-	client.redis.execute_command.assert_called_once_with(*expected)
+	client.redis.execute.assert_called_once_with(*expected)

@@ -1,6 +1,6 @@
 from typing import List
 
-from aredis import ResponseError  # type: ignore
+from redical import ResponseError
 
 __all__: List[str] = [
 	'DocumentExistsError',

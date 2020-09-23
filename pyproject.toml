@@ -1,13 +1,11 @@
 [tool.poetry]
-name = "aioredisearch"
+name = "redicalsearch"
 version = "0.1.0"
 description = ""
 authors = ["atatsu <nathan.lundquist@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-aredis = "^1.1.8"
-hiredis = "^1.0.1"
 pydantic = "^1.6.1"
 
 [tool.poetry.dev-dependencies]
@@ -16,6 +14,8 @@ mypy = "^0.782"
 flake8 = "^3.8.3"
 pytest-watch = "^4.2.0"
 pytest-asyncio = "^0.14.0"
+redical = {path = "lib/redical"}
+hiredis = "^1.1.0"
 
 [build-system]
 requires = ["poetry>=0.12"]
