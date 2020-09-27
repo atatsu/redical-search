@@ -1,28 +1,40 @@
 import pytest  # type: ignore
 
-from redicalsearch import GeoField, IndexExistsError, NumericField, RediSearch, TextField
+from redicalsearch import CreateFlags, GeoField, IndexExistsError, NumericField, TextField
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
-@pytest.fixture
-def client(redical):
-	return RediSearch('shakespeare', redis=redical)
-
-
-async def test_create_index(client, redical):
-	await client.create_index(
+async def test_new_index(redical):
+	assert True is await redical.ft.create(
+		'myindex',
 		TextField('line', TextField.SORTABLE),
 		TextField('play', TextField.NO_STEM),
 		NumericField('speech', NumericField.SORTABLE),
 		TextField('speaker', TextField.NO_STEM),
-		TextField('entry'),
-		GeoField('location'),
+		TextField('entry'), GeoField('location'),
+		flags=CreateFlags.NO_HIGHLIGHTS
 	)
-	assert 1 == await redical.exists('idx:shakespeare')
+	# TODO: use `ft.info` to assert some stats
 
 
-async def test_create_index_already_exists(client):
-	await client.create_index(TextField('line', TextField.SORTABLE))
-	with pytest.raises(IndexExistsError, match='shakespeare'):
-		await client.create_index(TextField('line', TextField.SORTABLE))
+async def test_index_already_exists(redical):
+	assert True is await redical.ft.create(
+		'myindex',
+		TextField('line', TextField.SORTABLE),
+		TextField('play', TextField.NO_STEM),
+		NumericField('speech', NumericField.SORTABLE),
+		TextField('speaker', TextField.NO_STEM),
+		TextField('entry'), GeoField('location'),
+		flags=CreateFlags.NO_HIGHLIGHTS
+	)
+	with pytest.raises(IndexExistsError):
+		assert True is await redical.ft.create(
+			'myindex',
+			TextField('line', TextField.SORTABLE),
+			TextField('play', TextField.NO_STEM),
+			NumericField('speech', NumericField.SORTABLE),
+			TextField('speaker', TextField.NO_STEM),
+			TextField('entry'), GeoField('location'),
+			flags=CreateFlags.NO_HIGHLIGHTS
+		)

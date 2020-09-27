@@ -146,8 +146,10 @@ class TextField(Field):
 				* `PhoneticMatchers.FRENCH`
 				* `PhoneticMatchers.PORTUGUESE`
 				* `PhoneticMatchers.SPANISH`
-		weight: The importance of this field when calculating result accuracy. Defaults
-			to `1` if not specified.
+		weight: Declares the importance of this field when calculating result accuracy. Defaults to
+			`1` if not specified.
+
+			Note: This is a multiplication factor.
 	"""
 	def __init__(
 		self,

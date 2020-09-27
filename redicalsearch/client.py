@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 from enum import auto, unique, Enum, Flag
-from types import TracebackType
 from typing import (
 	Any,
+	Awaitable,
 	ClassVar,
 	Dict,
 	List,
@@ -12,7 +12,6 @@ from typing import (
 	Sequence,
 	Tuple,
 	Type,
-	TypeVar,
 	Union,
 	TYPE_CHECKING,
 )
@@ -20,27 +19,23 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 
+from redical import RedicalBase, RedicalResource
+
 from .const import (
-	CommandAddParameters,
 	CommandCreateParameters,
 	CommandSearchParameters,
 	ErrorResponses,
 	FullTextCommands,
 )
-# FIXME
-from .exception import ResponseError
-
-from .exception import DocumentExistsError, DocumentNotFoundError, IndexExistsError, UnknownIndexError
+from .exception import DocumentNotFoundError, IndexExistsError, ResponseError, UnknownIndexError
+from .flag import CreateFlags
 from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
-	from redical import Redical, RedicalPipeline
-	from .field import Field as BaseField
-	Field = TypeVar('Field', bound=BaseField)
+	from .field import Field
 
 
 __all__: List[str] = [
-	'CreateFlags',
 	'Geo',
 	'GeoFilter',
 	'GeoFilterUnits',
@@ -49,46 +44,12 @@ __all__: List[str] = [
 	'NumericFilter',
 	'NumericFilterFlags',
 	'ReplaceOptions',
-	'RediSearch',
+	'FTCommandsMixin',
 	'SearchFlags',
 	'Summarize',
 ]
 
 LOG: logging.Logger = logging.getLogger(__name__)
-
-
-class CreateFlags(Flag):
-	MAX_TEXT_FIELDS = auto()
-	"""
-	If set will force *RediSearch* to encode indexes as if there were more than 32 text fields,
-	which allows for adding additional fields (beyond 32) using `RediSearch.alter_schema_add()`.
-	For efficiency *RediSearch* encodes indexes differently if they are created with less than 32
-	text fields.
-	"""
-	NO_FIELDS = auto()
-	"""
-	If set no field bits will be stored for each term. Saves memory but does not allow filtering
-	by specific fields.
-	"""
-	NO_FREQUENCIES = auto()
-	"""
-	If set term frequencies will not be stored on the index. This saves memory but does not allow
-	sorting based on the frequencies of a given term within documents.
-	"""
-	NO_HIGHLIGHTS = auto()
-	"""
-	If set highlighting support will be disabled which conserves storage space and memory. No
-	corresponding byte offsets will be stored for term positions.
-
-	Note: Implied by `CreateFlags.NO_OFFSETS`.
-	"""
-	NO_OFFSETS = auto()
-	"""
-	If set no term offsets will be stored for documents.  Saves memory but does not allow exact
-	searches or highlighting.
-
-	Note: Implies `CreateFlags.NO_HIGHLIGHTS`.
-	"""
 
 
 @dataclass
@@ -120,6 +81,14 @@ class Languages(Enum):
 	SWEDISH: str = 'swedish'
 	TAMIL: str = 'tamil'
 	TURKISH: str = 'turkish'
+
+	def __str__(self) -> str:
+		return str(self.value)
+
+
+@unique
+class Structures(Enum):
+	HASH: str = 'HASH'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -224,159 +193,126 @@ class Summarize(BaseModel):
 	"""
 
 
-class RediSearch:
-	"""
-	"""
-	_index_name: str
-	_redis: 'Redical'
+def _check_index_exists_error(exc: Exception) -> Exception:
+	if 'index already exists' in str(exc).lower():
+		return IndexExistsError(str(exc))
+	return exc
 
-	@property
-	def redis(self) -> 'Redical':
-		"""
-		A read-only property for accessing the redis client in use by this client.
-		"""
-		return self._redis
 
-	def __init__(self, index_name: str, /, *, redis: 'Redical') -> None:
-		self._index_name = index_name
-		self._redis = redis
-		setattr(self, 'add_document', _AddDocument(index_name, redis))
-
-	async def add_document(
+class Commands(RedicalBase):
+	def create(
 		self,
-		document_id: str,
+		name: str,
 		/,
-		*fields: Tuple[str, Any],
-		language: Optional[Languages] = None,
-		no_save: bool = False,
-		payload: Optional[str] = None,
-		replace: Optional[ReplaceOptions] = None,
-		replace_condition: Optional[str] = None,
-		score: Union[float, int] = 1.0,
-	) -> None:
-		"""
-		Add a document to the index.
-
-		Args:
-			document_id: The document's id that will be returned from searches.
-			fields: A sequence of field/value pairs to be indexed. Each field will be scored based
-				on the index spec given in `~RediSearch.create_index()`. Passing fields that are not
-				in the index spec will cause them to be stored as part of the document, or ignored if
-				`no_save` is set.
-			language: If supplied a stemmer for the chosen language is used during indexing.
-				The following languages are supported:
-					* `Languages.ARABIC`
-					* `Languages.CHINESE`
-					* `Languages.DANISH`
-					* `Languages.DUTCH`
-					* `Languages.ENGLISH`
-					* `Languages.FINNISH`
-					* `Languages.FRENCH`
-					* `Languages.GERMAN`
-					* `Languages.HUNGARIAN`
-					* `Languages.ITALIAN`
-					* `Languages.NORWEGIAN`
-					* `Languages.PORTUGUESE`
-					* `Languages.ROMANIAN`
-					* `Languages.RUSSIAN`
-					* `Languages.SPANISH`
-					* `Languages.SWEDISH`
-					* `Languages.TAMIL`
-					* `Languages.TURKISH`
-
-				Note:
-					If indexing a Chinese language document the language **must** be set to
-					`Languages.CHINESE` in order for the Chinese characters to be tokenized properly.
-			no_save: If set the document will not be saved in the index but only indexed.
-			payload: Optionally provide a binary safe payload string that can be evaluated at query
-				time by a custom scoring function.
-			replace: If set an UPSERT-style insertion is performed.
-
-				If `ReplaceOptions.PARTIAL` is used not all fields for reindexing need to be
-				specified. Fields *not* supplied will be loaded from the current version of the
-				document. In addition, if only non-indexable `fields`, `score`, or `payload`
-				are set, a full re-indexing of the document is not performed (and is a lot faster).
-
-				If `ReplaceOptions.NO_CREATE` is used the document is only updated and reindexed if
-				it already exists. If the document does not exist an error will be raised.
-			replace_condition: Update the document only if a boolean expression applies to the
-				document **before the update**.
-
-				The expression is evaluated atomically before the update, ensuring that the update
-				happens only if it is true.
-
-				Note:
-					Applicable only if `replace` options are used.
-
-				Example:
-					"@timestamp < 23323234234"
-			score: The document's rank based on the user's ranking.
-
-				Note:
-					This must be between 0.0 and 1.0.
-		"""
-
-	async def create_index(
-		self,
 		*fields: 'Field',
+		on: Structures = Structures.HASH,
+		prefix: Optional[Sequence[str]] = None,
+		filter: Optional[str] = None,
 		flags: Optional[CreateFlags] = None,
+		language: Optional[Languages] = None,
+		language_field: Optional[str] = None,
+		payload_field: Optional[str] = None,
+		score: Optional[Union[float, int]] = None,
+		score_field: Optional[str] = None,
 		stopwords: Optional[Sequence[str]] = None,
-		temporary: Union[float, int] = 0,
-	) -> None:
+		temporary: Optional[int] = None,
+	) -> Awaitable[bool]:
 		"""
-		Create an index with the given spec. The index name will be used in all the
-		key names so keep it short!
+		Create an index with the given spec.
 
 		Args:
-			fields: A sequence of fields for the index.
+			index: The index name to create. If it exists the old spec will be overwritten.
+			*fields: A variable length list of fields for the index.
+			on: Structure to use for documents in the created index.
+
+				Note:
+					Currently only supports `Structures.HASH`.
+			prefix: Tells the index which keys it should index. If not supplied all keys
+				will be indexed.
+			filter: A filter expression with the full *RediSearch* aggregation expression
+				language.
 			flags: The following flags are accepted:
 				* `CreateFlags.MAX_TEXT_FIELDS`
 				* `CreateFlags.NO_FIELDS`
 				* `CreateFlags.NO_FREQUENCIES`
 				* `CreateFlags.NO_HIGHLIGHTS`
 				* `CreateFlags.NO_OFFSETS`
-			stopwords: If supplied the index will be set with a custom stopword list
-				to be ignored during indexing and search time.
+				* `CreateFlags.SKIP_INITIAL_SCAN`
+			language: If set indicates the default language for documents in the index.
+				Default is `Languages.ENGLISH`
 
-				If not supplied the default stopwords will be used.
+				Note:
+					When adding Chinese-language documents `Languages.CHINESE` should be
+					set in order for the indexer to properly tokenize the terms.
+			language_field: If set indicates the document field that should be used as
+				the document language.
+			payload_field: If set indicates the document field that should be used as a
+				binary safe payload string for the document that can be evaluated at query
+				time by a custom scoring function, or retrieved by the client.
+			score: If set indicates the default score for documents in the index. Default
+				score is 1.0.
+			score_field: If set indicates the document field that should be used as the
+				document's rank based on the user's ranking. Ranking must be between 0.0
+				and 1.0. If not set the default score is 1.0.
+			stopwords: Used to supply the index with a custom stopword list to be ignored
+				during indexing and search time.
+			temporary: Create a lightweight temporary index which will expire after the
+				specified period of inactivity (in seconds). The internal idle timer is
+				reset whenever the index is searched or added to. Because such indexes
+				are lightweight, you can create thousands of such indexes without negative
+				performance implications.
 
-				If an empty sequence the created index will not have stopwords.
-			temporary: If non-zero the created index will expire after the specified
-				number of seconds of inactivity. The internal idle timer is reset whenever
-				the index is searched or added to. Because such indexes are lightweight
-				thousands of them can be created without negative performance implications.
+				Note:
+					When creating temporary indexes consider also using
+					`CreateFlags.SKIP_INITIAL_SCAN` to avoid costly scanning.
 		"""
-		command: List[Any] = [str(FullTextCommands.CREATE), self._index_name]
-		if flags is not None and CreateFlags.MAX_TEXT_FIELDS in flags:
-				command.append(str(CommandCreateParameters.MAXTEXTFIELDS))
-		if temporary > 0:
-			command.extend([str(CommandCreateParameters.TEMPORARY), str(temporary)])
+		command: List[Any] = [str(FullTextCommands.CREATE), name, str(CommandCreateParameters.ON), str(on)]
+		if prefix is not None:
+			prefix = tuple(prefix)
+			command.extend([str(CommandCreateParameters.PREFIX), len(prefix), *prefix])
+		if filter is not None:
+			command.extend([str(CommandCreateParameters.FILTER), str(filter)])
+		if language is not None:
+			command.extend([str(CommandCreateParameters.LANGUAGE), str(language)])
+		if language_field is not None:
+			command.extend([str(CommandCreateParameters.LANGUAGE_FIELD), str(language_field)])
+		if payload_field is not None:
+			command.extend([str(CommandCreateParameters.PAYLOAD_FIELD), str(payload_field)])
+		if score is not None:
+			score = float(score)
+			if score < 0 or score > 1:
+				raise ValueError(f'score must be between 0.0 and 1.0, got {score}')
+			command.extend([str(CommandCreateParameters.SCORE), str(score)])
+		if score_field is not None:
+			command.extend([str(CommandCreateParameters.SCORE_FIELD), str(score_field)])
+		if stopwords is not None:
+			stopwords = tuple(stopwords)
+			command.extend([str(CommandCreateParameters.STOPWORDS), len(stopwords), *stopwords])
+		if temporary is not None:
+			command.extend([str(CommandCreateParameters.TEMPORARY), int(temporary)])
 		if flags is not None:
-			if CreateFlags.NO_OFFSETS in flags:
-				command.append(str(CommandCreateParameters.NOOFFSETS))
-			if CreateFlags.NO_HIGHLIGHTS in flags:
-				command.append(str(CommandCreateParameters.NOHL))
+			if CreateFlags.MAX_TEXT_FIELDS in flags:
+				command.append(str(CommandCreateParameters.MAXTEXTFIELDS))
 			if CreateFlags.NO_FIELDS in flags:
 				command.append(str(CommandCreateParameters.NOFIELDS))
 			if CreateFlags.NO_FREQUENCIES in flags:
 				command.append(str(CommandCreateParameters.NOFREQS))
-		if stopwords is not None:
-			num: str = str(len(stopwords))
-			command.extend([str(CommandCreateParameters.STOPWORDS), num, *stopwords])
+			if CreateFlags.NO_HIGHLIGHTS in flags:
+				command.append(str(CommandCreateParameters.NOHL))
+			if CreateFlags.NO_OFFSETS in flags:
+				command.append(str(CommandCreateParameters.NOOFFSETS))
+			if CreateFlags.SKIP_INITIAL_SCAN in flags:
+				command.append(str(CommandCreateParameters.SKIPINITIALSCAN))
+
 		command.append(str(CommandCreateParameters.SCHEMA))
-		f: 'BaseField'
+		f: 'Field'
 		x: Any
 		command.extend([x for f in fields for x in f])
-		LOG.debug(f'executing command: {" ".join(command)}')
-		try:
-			await self._redis.execute(*command)
-		except ResponseError as ex:
-			if str(ex).lower() == str(ErrorResponses.INDEX_ALREADY_EXISTS):
-				raise IndexExistsError(self._index_name)
-			raise
+		LOG.debug(f'executing command: {" ".join(map(str, command))}')
+		return self.execute(*command, error_func=_check_index_exists_error)
 
 	async def get_document(
-		self, document_id: str, /, *, document_cls: Optional[Type[Document]] = None
+		self, index_name: str, /, document_id: str, *, document_cls: Optional[Type[Document]] = None
 	) -> Union[Document, Dict[str, str]]:
 		"""
 		Retrieve the full contents of a document.
@@ -387,9 +323,9 @@ class RediSearch:
 				loaded up with the returned data (`document_cls(**doc)`). Otherwise a
 				dictionary is returned.
 		"""
-		command: List[str] = [str(FullTextCommands.GET), self._index_name, document_id]
+		command: List[str] = [str(FullTextCommands.GET), index_name, document_id]
 		LOG.debug(f'executing command: {" ".join(command)}')
-		raw: Optional[List[str]] = await self._redis.execute(*command)
+		raw: Optional[List[str]] = await self.execute(*command)
 		if raw is None:
 			raise DocumentNotFoundError(document_id)
 		i: int
@@ -398,9 +334,7 @@ class RediSearch:
 			return document_cls(**mapped)
 		return mapped
 
-	async def info(
-		self
-	) -> IndexInfo:
+	async def info(self, index_name: str, /) -> IndexInfo:
 		"""
 		Returns information and statistics on the index. Returned values include:
 			* number of documents
@@ -408,13 +342,13 @@ class RediSearch:
 			* average bytes per record
 			* size and capacity of the index buffers
 		"""
-		command: List[str] = [str(FullTextCommands.INFO), self._index_name]
+		command: List[str] = [str(FullTextCommands.INFO), index_name]
 		LOG.debug(f'executing command: {" ".join(command)}')
 		try:
-			res: List[Any] = await self._redis.execute(*command)
+			res: List[Any] = await self.execute(*command)
 		except ResponseError as ex:
 			if str(ex).lower() == str(ErrorResponses.UNKNOWN_INDEX):
-				raise UnknownIndexError(self._index_name)
+				raise UnknownIndexError(index_name)
 			raise
 		x: int
 		mapped: Dict[str, Any] = {res[x]: res[x + 1] for x in range(0, len(res), 2)}
@@ -422,8 +356,9 @@ class RediSearch:
 
 	async def search(
 		self,
-		query: str,
+		index_name: str,
 		/,
+		query: str,
 		*,
 		document_cls: Optional[Type[Document]] = None,
 		expander: Optional[str] = None,
@@ -463,7 +398,7 @@ class RediSearch:
 				* `SearchFlags.VERBATIM`: Try not to use stemming for query expansion. Instead
 					search the query terms verbatim.
 				* `SearchFlags.WITH_PAYLOADS`: Retrieve optional document payloads (see
-					`RediSearch.add_document`). The payloads follow the document id, and if
+					`FTCommandsMixin.add_document`). The payloads follow the document id, and if
 					`SearchFlags.WITH_SCORES` was set, follow the scores.
 				* `SearchFlags.WITH_SCORES`: Return the relative internal score of each document.
 					This can be used to merge results from multiple instances.
@@ -544,7 +479,7 @@ class RediSearch:
 		"""
 		# kwargs are handled in the order they appear in the `FT.SEARCH` docs:
 		# https://oss.redislabs.com/redisearch/Commands/#ftsearch
-		command: List[Any] = [str(FullTextCommands.SEARCH), self._index_name, repr(query)]
+		command: List[Any] = [str(FullTextCommands.SEARCH), index_name, repr(query)]
 		if flags is not None:
 			if SearchFlags.NO_CONTENT in flags:
 				command.append(str(CommandSearchParameters.NOCONTENT))
@@ -655,7 +590,7 @@ class RediSearch:
 			command.extend([str(CommandSearchParameters.LIMIT), offset, limit_])
 
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		raw_results: List[Any] = await self._redis.execute(*command)
+		raw_results: List[Any] = await self.execute(*command)
 		total: int = raw_results[0]
 		x: int
 		y: int
@@ -681,7 +616,21 @@ class RediSearch:
 		]
 		return SearchResult(documents=formatted, count=len(formatted), total=total, offset=offset, limit=limit_)
 
-	CreateFlags: ClassVar[Type[CreateFlags]] = CreateFlags
+
+class FTCommandsMixin(RedicalBase):
+	_ft: Commands
+
+	@property
+	def ft(self) -> Commands:
+		"""
+		Access *RediSearch* (full text) commands.
+		"""
+		return self._ft
+
+	def __init__(self, resource: RedicalResource) -> None:
+		super().__init__(resource)
+		self._ft = Commands(resource)
+
 	GeoFilter: ClassVar[Type[GeoFilter]] = GeoFilter
 	Highlight: ClassVar[Type[Highlight]] = Highlight
 	Languages: ClassVar[Type[Languages]] = Languages
@@ -689,172 +638,3 @@ class RediSearch:
 	ReplaceOptions: ClassVar[Type[ReplaceOptions]] = ReplaceOptions
 	SearchFlags: ClassVar[Type[SearchFlags]] = SearchFlags
 	Summarize: ClassVar[Type[Summarize]] = Summarize
-
-
-class AddDocumentPipeline:
-	_buffer_size: int
-	_command_count: int
-	_executed: int
-	_index_name: str
-	_pipe: 'RedicalPipeline'
-	_redis: 'Redical'
-
-	__slots__: List[str] = ['_buffer_size', '_command_count', '_executed', '_index_name', '_pipe', '_redis']
-
-	def __init__(self, index_name: str, redis: 'Redical', batch_size: int) -> None:
-		self._command_count = 0
-		self._index_name = index_name
-		self._redis = redis
-		self._buffer_size = batch_size
-		self._executed = 0
-
-	async def __aenter__(self) -> AddDocumentPipeline:
-		self._pipe = await self._redis.__aenter__()
-		return self
-
-	async def __aexit__(
-		self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Optional[TracebackType]
-	) -> None:
-		if exc is None and self._command_count > 0:
-			try:
-				await self._redis.__aexit__(exc_type, exc, tb)
-			except ResponseError as ex:
-				if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
-					LOG.exception(f'After adding {self._executed} buffered document(s), encountered error')
-					raise
-				LOG.warning(str(ex))
-
-		if exc is not None:
-			LOG.error(f'After adding {self._executed} buffered document(s), encountered error', exc_info=exc)
-
-	async def __call__(
-		self,
-		document_id: str,
-		/,
-		*fields: Tuple[str, Any],
-		language: Optional[Languages] = None,
-		no_save: bool = False,
-		payload: Optional[str] = None,
-		replace: Optional[ReplaceOptions] = None,
-		replace_condition: Optional[str] = None,
-		score: Union[float, int] = 1.0,
-	) -> None:
-		command: List[Any] = _build_add_document_command(
-			self._index_name,
-			document_id,
-			*fields,
-			language=language,
-			no_save=no_save,
-			payload=payload,
-			replace=replace,
-			replace_condition=replace_condition,
-			score=score
-		)
-		self._pipe.execute(*command)
-		self._command_count += 1
-		LOG.debug(f'queued command [{self._command_count}]: {" ".join(map(str, command))}')
-		# FIXME: get rid of `batch_size` stuff
-		# if self._command_count >= self._buffer_size:
-		#     try:
-		#         await self._pipe.execute()
-		#         self._executed += self._command_count
-		#         self._command_count = 0
-		#     except ResponseError as ex:
-		#         if str(ErrorResponses.DOCUMENT_ALREADY_EXISTS) not in str(ex).lower():
-		#             raise
-		#         LOG.warning(str(ex))
-
-
-class _AddDocument:
-	_index_name: str
-	_redis: 'Redical'
-
-	__slots__: List[str] = ['_index_name', '_redis']
-
-	def __init__(self, index_name: str, redis: 'Redical') -> None:
-		self._index_name = index_name
-		self._redis = redis
-
-	def batch(self, *, size: int = 1000) -> AddDocumentPipeline:
-		return AddDocumentPipeline(self._index_name, self._redis, size)
-
-	async def __call__(
-		self,
-		document_id: str,
-		/,
-		*fields: Tuple[str, Any],
-		language: Optional[Languages] = None,
-		no_save: bool = False,
-		payload: Optional[str] = None,
-		replace: Optional[ReplaceOptions] = None,
-		replace_condition: Optional[str] = None,
-		score: Union[float, int] = 1.0,
-	) -> None:
-		command: List[Any] = _build_add_document_command(
-			self._index_name,
-			document_id,
-			*fields,
-			language=language,
-			no_save=no_save,
-			payload=payload,
-			replace=replace,
-			replace_condition=replace_condition,
-			score=score
-		)
-		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		try:
-			await self._redis.execute(*command)
-		except ResponseError as ex:
-			if str(ex).lower() == str(ErrorResponses.DOCUMENT_ALREADY_EXISTS):
-				raise DocumentExistsError(document_id)
-			raise
-
-
-def _build_add_document_command(
-	index_name: str,
-	document_id: str,
-	*fields: Tuple[str, Any],
-	language: Optional[Languages],
-	no_save: bool,
-	payload: Optional[str],
-	replace: Optional[ReplaceOptions],
-	replace_condition: Optional[str],
-	score: Union[float, int]
-) -> List[Any]:
-	if not fields:
-		raise ValueError('Field/value pairs must be supplied')
-
-	score = float(score)
-	if score > 1:
-		LOG.warning(f'`score` value of {score} exceeds 1.0, reducing to 1.0')
-		score = 1.0
-	command: List[Any] = [str(FullTextCommands.ADD), index_name, document_id, score]
-	if no_save:
-		command.append(str(CommandAddParameters.NOSAVE))
-	if isinstance(replace, ReplaceOptions):
-		if replace == ReplaceOptions.DEFAULT:
-			command.append(str(CommandAddParameters.REPLACE))
-		elif replace == ReplaceOptions.PARTIAL:
-			command.extend([str(CommandAddParameters.REPLACE), str(CommandAddParameters.PARTIAL)])
-		elif replace == ReplaceOptions.NO_CREATE:
-			command.extend([str(CommandAddParameters.REPLACE), str(CommandAddParameters.NOCREATE)])
-		elif ReplaceOptions.PARTIAL in replace and ReplaceOptions.NO_CREATE in replace:
-			command.extend([
-				str(CommandAddParameters.REPLACE),
-				str(CommandAddParameters.PARTIAL),
-				str(CommandAddParameters.NOCREATE)
-			])
-	if isinstance(language, Languages):
-		command.extend([str(CommandAddParameters.LANGUAGE), str(language)])
-	if payload is not None:
-		command.extend([str(CommandAddParameters.PAYLOAD), str(payload)])
-	if replace_condition is not None:
-		command.extend([str(CommandAddParameters.IF), repr(str(replace_condition))])
-	command.append(str(CommandAddParameters.FIELDS))
-	field: str
-	value: Any
-	for field, value in fields:
-		value = str(value)
-		command.extend([field, value])
-
-	return command

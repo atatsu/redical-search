@@ -1,15 +1,15 @@
 import pytest  # type: ignore
 
-from redicalsearch import IndexInfo, NumericField, RediSearch, TextField, UnknownIndexError
+from redicalsearch import IndexInfo, NumericField, FTCommandsMixin, TextField, UnknownIndexError
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.skip('new version')]
 
 
 @pytest.fixture
 def client(redical):
-	return RediSearch('shakespeare', redis=redical)
+	return FTCommandsMixin('shakespeare', redis=redical)
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 async def test_info(client):
 	await client.create_index(TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE))
 	info = await client.info()
@@ -26,9 +26,7 @@ async def test_info(client):
 	assert 0 == info.number_of_records
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 async def test_info_no_index(redical):
-	client = RediSearch('nonexistent', redis=redical)
+	client = FTCommandsMixin('nonexistent', redis=redical)
 	with pytest.raises(UnknownIndexError, match='nonexistent'):
 		await client.info()

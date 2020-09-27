@@ -2,29 +2,23 @@ from enum import unique, Enum
 
 
 @unique
-class CommandAddParameters(Enum):
-	FIELDS: str = 'FIELDS'
-	IF: str = 'IF'
-	LANGUAGE: str = 'LANGUAGE'
-	NOCREATE: str = 'NOCREATE'
-	NOSAVE: str = 'NOSAVE'
-	PARTIAL: str = 'PARTIAL'
-	PAYLOAD: str = 'PAYLOAD'
-	REPLACE: str = 'REPLACE'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-@unique
 class CommandCreateParameters(Enum):
+	FILTER: str = 'FILTER'
+	LANGUAGE: str = 'LANGUAGE'
+	LANGUAGE_FIELD: str = 'LANGUAGE_FIELD'
 	MAXTEXTFIELDS: str = 'MAXTEXTFIELDS'
-	NOHL: str = 'NOHL'
 	NOFIELDS: str = 'NOFIELDS'
 	NOFREQS: str = 'NOFREQS'
+	NOHL: str = 'NOHL'
 	NOOFFSETS: str = 'NOOFFSETS'
-	STOPWORDS: str = 'STOPWORDS'
+	ON: str = 'ON'
+	PAYLOAD_FIELD: str = 'PAYLOAD_FIELD'
+	PREFIX: str = 'PREFIX'
 	SCHEMA: str = 'SCHEMA'
+	SCORE: str = 'SCORE'
+	SCORE_FIELD: str = 'SCORE_FIELD'
+	SKIPINITIALSCAN: str = 'SKIPINITIALSCAN'
+	STOPWORDS: str = 'STOPWORDS'
 	TEMPORARY: str = 'TEMPORARY'
 
 	def __str__(self) -> str:

@@ -3,15 +3,26 @@ from unittest import mock
 
 import pytest
 
-from redical import create_redical_pool, Redical
-from redicalsearch import RediSearch, TextField
+from redical import create_redical_pool, Redical as _Redical, RedicalResource
+from redicalsearch import FTCommandsMixin, TextField
+
+
+class Redical(FTCommandsMixin, _Redical):
+	pass
+
+
+@pytest.fixture
+def mocked_redicalsearch():
+	mock_resource = mock.Mock(spec=RedicalResource)
+	redical = Redical(mock_resource)
+	return redical
 
 
 @pytest.fixture
 def mocked_redisearch():
 	def _redisearch(index_name):
 		mock_redis = mock.Mock(spec=Redical, execute=mock.AsyncMock())
-		return RediSearch(index_name, redis=mock_redis)
+		return FTCommandsMixin(index_name, redis=mock_redis)
 	return _redisearch
 
 
@@ -26,7 +37,7 @@ def redis_uri():
 
 @pytest.fixture
 async def redical(redis_uri):
-	redical = await create_redical_pool(redis_uri)
+	redical = await create_redical_pool(redis_uri, redical_cls=Redical)
 	await redical.flushdb()
 	yield redical
 	redical.close()
@@ -35,9 +46,8 @@ async def redical(redis_uri):
 
 @pytest.fixture
 async def client_with_index(redical):
-	client = RediSearch('users', redis=redical)
-	await client.create_index(
+	await redical.ft.create(
 		TextField('username', TextField.SORTABLE | TextField.NO_STEM),
 		TextField('real_name'),
 	)
-	return client
+	return redical
