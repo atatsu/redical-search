@@ -18,7 +18,6 @@ class IndexInfo(BaseModel):
 
 	@validator('field_defs', pre=True)
 	def format_field_defs(cls, v: Sequence[Sequence[str]]) -> Dict[str, Any]:
-		print(v)
 		field_defs: Dict[str, Any] = {}
 		field_def: Sequence[str]
 		for field_def in v:

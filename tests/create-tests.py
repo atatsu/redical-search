@@ -1,7 +1,7 @@
 import pytest  # type: ignore
 
 from redicalsearch import CreateFlags, Languages, TextField
-from redicalsearch.client import _check_index_exists_error
+from redicalsearch.mixin import _check_index_exists_error
 
 
 @pytest.mark.parametrize(

@@ -62,7 +62,6 @@ class CommandSearchParameters(Enum):
 
 @unique
 class ErrorResponses(Enum):
-	DOCUMENT_ALREADY_EXISTS: str = 'document already exists'
 	INDEX_ALREADY_EXISTS: str = 'index already exists'
 	UNKNOWN_INDEX: str = 'unknown index name'
 

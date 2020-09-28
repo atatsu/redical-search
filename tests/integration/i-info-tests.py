@@ -1,20 +1,15 @@
 import pytest  # type: ignore
 
-from redicalsearch import IndexInfo, NumericField, FTCommandsMixin, TextField, UnknownIndexError
+from redicalsearch import IndexInfo, NumericField, TextField, UnknownIndexError
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.skip('new version')]
-
-
-@pytest.fixture
-def client(redical):
-	return FTCommandsMixin('shakespeare', redis=redical)
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
-async def test_info(client):
-	await client.create_index(TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE))
-	info = await client.info()
+async def test_info(redical):
+	await redical.ft.create('myindex', TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE))
+	info = await redical.ft.info('myindex')
 	assert isinstance(info, IndexInfo)
-	assert 'shakespeare' == info.name
+	assert 'myindex' == info.name
 	assert [] == info.options
 	field_defs = dict(
 		line=dict(type='TEXT', options=['WEIGHT', '1', 'SORTABLE']),
@@ -27,6 +22,5 @@ async def test_info(client):
 
 
 async def test_info_no_index(redical):
-	client = FTCommandsMixin('nonexistent', redis=redical)
-	with pytest.raises(UnknownIndexError, match='nonexistent'):
-		await client.info()
+	with pytest.raises(UnknownIndexError):
+		await redical.ft.info('nonexistent')

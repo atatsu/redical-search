@@ -27,7 +27,7 @@ from .const import (
 	ErrorResponses,
 	FullTextCommands,
 )
-from .exception import DocumentNotFoundError, IndexExistsError, ResponseError, UnknownIndexError
+from .exception import IndexExistsError, UnknownIndexError
 from .flag import CreateFlags
 from .model import Document, IndexInfo, SearchResult
 
@@ -46,6 +46,7 @@ __all__: List[str] = [
 	'ReplaceOptions',
 	'FTCommandsMixin',
 	'SearchFlags',
+	'Structures',
 	'Summarize',
 ]
 
@@ -194,15 +195,27 @@ class Summarize(BaseModel):
 
 
 def _check_index_exists_error(exc: Exception) -> Exception:
-	if 'index already exists' in str(exc).lower():
+	if str(ErrorResponses.INDEX_ALREADY_EXISTS) in str(exc).lower():
 		return IndexExistsError(str(exc))
 	return exc
+
+
+def _check_unknown_index_error(exc: Exception) -> Exception:
+	if str(ErrorResponses.UNKNOWN_INDEX) in str(exc).lower():
+		return UnknownIndexError(str(exc))
+	return exc
+
+
+def _convert_index_info(response: List[Any]) -> IndexInfo:
+	x: int
+	mapped: Dict[str, Any] = {response[x]: response[x + 1] for x in range(0, len(response), 2)}
+	return IndexInfo(**mapped)
 
 
 class Commands(RedicalBase):
 	def create(
 		self,
-		name: str,
+		index_name: str,
 		/,
 		*fields: 'Field',
 		on: Structures = Structures.HASH,
@@ -221,7 +234,7 @@ class Commands(RedicalBase):
 		Create an index with the given spec.
 
 		Args:
-			index: The index name to create. If it exists the old spec will be overwritten.
+			index_name: The index name to create. If it exists the old spec will be overwritten.
 			*fields: A variable length list of fields for the index.
 			on: Structure to use for documents in the created index.
 
@@ -266,7 +279,7 @@ class Commands(RedicalBase):
 					When creating temporary indexes consider also using
 					`CreateFlags.SKIP_INITIAL_SCAN` to avoid costly scanning.
 		"""
-		command: List[Any] = [str(FullTextCommands.CREATE), name, str(CommandCreateParameters.ON), str(on)]
+		command: List[Any] = [str(FullTextCommands.CREATE), index_name, str(CommandCreateParameters.ON), str(on)]
 		if prefix is not None:
 			prefix = tuple(prefix)
 			command.extend([str(CommandCreateParameters.PREFIX), len(prefix), *prefix])
@@ -311,48 +324,15 @@ class Commands(RedicalBase):
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
 		return self.execute(*command, error_func=_check_index_exists_error)
 
-	async def get_document(
-		self, index_name: str, /, document_id: str, *, document_cls: Optional[Type[Document]] = None
-	) -> Union[Document, Dict[str, str]]:
+	def info(self, index_name: str, /) -> Awaitable[IndexInfo]:
 		"""
-		Retrieve the full contents of a document.
+		Returns information and statistics on the index.
 
 		Args:
-			document_id: The id of the document as inserted into the index.
-			document_cls: If supplied an instance of the supplied class will be returned
-				loaded up with the returned data (`document_cls(**doc)`). Otherwise a
-				dictionary is returned.
-		"""
-		command: List[str] = [str(FullTextCommands.GET), index_name, document_id]
-		LOG.debug(f'executing command: {" ".join(command)}')
-		raw: Optional[List[str]] = await self.execute(*command)
-		if raw is None:
-			raise DocumentNotFoundError(document_id)
-		i: int
-		mapped: Dict[str, str] = {raw[i]: raw[i + 1] for i in range(0, len(raw), 2)}
-		if document_cls is not None:
-			return document_cls(**mapped)
-		return mapped
-
-	async def info(self, index_name: str, /) -> IndexInfo:
-		"""
-		Returns information and statistics on the index. Returned values include:
-			* number of documents
-			* number of distinct terms
-			* average bytes per record
-			* size and capacity of the index buffers
+			index_name: The name of the index to retrieve info for.
 		"""
 		command: List[str] = [str(FullTextCommands.INFO), index_name]
-		LOG.debug(f'executing command: {" ".join(command)}')
-		try:
-			res: List[Any] = await self.execute(*command)
-		except ResponseError as ex:
-			if str(ex).lower() == str(ErrorResponses.UNKNOWN_INDEX):
-				raise UnknownIndexError(index_name)
-			raise
-		x: int
-		mapped: Dict[str, Any] = {res[x]: res[x + 1] for x in range(0, len(res), 2)}
-		return IndexInfo(**mapped)
+		return self.execute(*command, conversion_func=_convert_index_info, error_func=_check_unknown_index_error)
 
 	async def search(
 		self,
