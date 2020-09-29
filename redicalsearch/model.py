@@ -12,9 +12,11 @@ class IndexInfo(BaseModel):
 	#        once it is actually removed `field_defs` can be renamed to `fields` and the
 	#        alias can be removed.
 	field_defs: Dict[str, Dict[str, Any]] = Field(..., alias='fields')
+	hash_indexing_failures: int
 	number_of_documents: int = Field(..., alias='num_docs')
 	number_of_terms: int = Field(..., alias='num_terms')
 	number_of_records: int = Field(..., alias='num_records')
+	percent_indexed: float
 
 	@validator('field_defs', pre=True)
 	def format_field_defs(cls, v: Sequence[Sequence[str]]) -> Dict[str, Any]:

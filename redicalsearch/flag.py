@@ -1,7 +1,7 @@
 from enum import auto, Flag
 from typing import List
 
-__all__: List[str] = ['CreateFlags']
+__all__: List[str] = ['CreateFlags', 'SearchFlags']
 
 
 class CreateFlags(Flag):
@@ -41,4 +41,24 @@ class CreateFlags(Flag):
 	SKIP_INITIAL_SCAN = auto()
 	"""
 	If used there is no initial scan and indexing performed when the index is created.
+	"""
+
+
+class SearchFlags(Flag):
+	EXPLAIN_SCORE = auto()
+	IN_ORDER = auto()
+	NO_CONTENT = auto()
+	VERBATIM = auto()
+	NO_STOPWORDS = auto()
+	WITH_SCORES = auto()
+	WITH_PAYLOADS = auto()
+	WITH_SORT_KEYS = auto()
+	# SORTBY flags
+	ASC = auto()
+	"""
+	Sort search results in ascending order.
+	"""
+	DESC = auto()
+	"""
+	Sort search results in descending order.
 	"""

@@ -1,8 +1,8 @@
+from unittest import mock
+
 import pytest  # type: ignore
 
-from redicalsearch import FTCommandsMixin
-
-pytestmark = [pytest.mark.skip('new version')]
+from redicalsearch import GeoFilter, Highlight, Languages, NumericFilter, SearchFlags, Summarize
 
 
 @pytest.mark.asyncio
@@ -12,41 +12,41 @@ pytestmark = [pytest.mark.skip('new version')]
 		# Generic flags
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.NO_CONTENT),
+			dict(flags=SearchFlags.NO_CONTENT),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'NOCONTENT'],
 		),
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.VERBATIM),
+			dict(flags=SearchFlags.VERBATIM),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'VERBATIM'],
 		),
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.NO_STOPWORDS),
+			dict(flags=SearchFlags.NO_STOPWORDS),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'NOSTOPWORDS'],
 		),
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.WITH_SCORES),
+			dict(flags=SearchFlags.WITH_SCORES),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'WITHSCORES'],
 		),
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.WITH_PAYLOADS),
+			dict(flags=SearchFlags.WITH_PAYLOADS),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'WITHPAYLOADS'],
 		),
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.WITH_SORT_KEYS),
+			dict(flags=SearchFlags.WITH_SORT_KEYS),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'WITHSORTKEYS'],
 		),
 		(
 			('foobar',),
 			dict(
 				flags=(
-					FTCommandsMixin.SearchFlags.WITH_SORT_KEYS | FTCommandsMixin.SearchFlags.WITH_PAYLOADS
-					| FTCommandsMixin.SearchFlags.WITH_SCORES | FTCommandsMixin.SearchFlags.NO_STOPWORDS  # noqa:W503
-					| FTCommandsMixin.SearchFlags.VERBATIM | FTCommandsMixin.SearchFlags.NO_CONTENT  # noqa:W503
+					SearchFlags.WITH_SORT_KEYS | SearchFlags.WITH_PAYLOADS
+					| SearchFlags.WITH_SCORES | SearchFlags.NO_STOPWORDS  # noqa:W503
+					| SearchFlags.VERBATIM | SearchFlags.NO_CONTENT  # noqa:W503
 				)
 			),
 			[
@@ -57,17 +57,17 @@ pytestmark = [pytest.mark.skip('new version')]
 		# FILTER
 		(
 			('foobar',),
-			dict(numeric_filter=[FTCommandsMixin.NumericFilter(field='myfield', minimum=5, maximum=10)]),
+			dict(numeric_filter=[NumericFilter(field='myfield', minimum=5, maximum=10)]),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'FILTER', 'myfield', 5.0, 10.0],
 		),
 		(
 			('foobar',),
 			dict(numeric_filter=[
-				FTCommandsMixin.NumericFilter(
-					field='myfield1', maximum=10, flags=FTCommandsMixin.NumericFilter.Flags.EXCLUSIVE_MAX
+				NumericFilter(
+					field='myfield1', maximum=10, flags=NumericFilter.Flags.EXCLUSIVE_MAX
 				),
-				FTCommandsMixin.NumericFilter(
-					field='myfield2', minimum=5, flags=FTCommandsMixin.NumericFilter.Flags.EXCLUSIVE_MIN
+				NumericFilter(
+					field='myfield2', minimum=5, flags=NumericFilter.Flags.EXCLUSIVE_MIN
 				),
 			]),
 			[
@@ -79,9 +79,9 @@ pytestmark = [pytest.mark.skip('new version')]
 		# GEOFILTER
 		(
 			('foobar',),
-			dict(geo_filter=FTCommandsMixin.GeoFilter(
+			dict(geo_filter=GeoFilter(
 				field='mygeofield', longitude=111.11, latitude=-96.7, radius=50,
-				units=FTCommandsMixin.GeoFilter.Units.METERS
+				units=GeoFilter.Units.METERS
 			)),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'GEOFILTER', 'mygeofield', 111.11, -96.7, 50.0, 'm'],
 		),
@@ -106,32 +106,32 @@ pytestmark = [pytest.mark.skip('new version')]
 		# SUMMARIZE
 		(
 			('foobar',),
-			dict(summarize=FTCommandsMixin.Summarize()),
+			dict(summarize=Summarize()),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SUMMARIZE'],
 		),
 		(
 			('foobar',),
-			dict(summarize=FTCommandsMixin.Summarize(field_names=['myfield1', 'myfield2', 'myfield3'])),
+			dict(summarize=Summarize(field_names=['myfield1', 'myfield2', 'myfield3'])),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SUMMARIZE', 'FIELDS', 3, 'myfield1', 'myfield2', 'myfield3'],
 		),
 		(
 			('foobar',),
-			dict(summarize=FTCommandsMixin.Summarize(fragment_total=5)),
+			dict(summarize=Summarize(fragment_total=5)),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SUMMARIZE', 'FRAGS', 5],
 		),
 		(
 			('foobar',),
-			dict(summarize=FTCommandsMixin.Summarize(fragment_length=50)),
+			dict(summarize=Summarize(fragment_length=50)),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SUMMARIZE', 'LEN', 50],
 		),
 		(
 			('foobar',),
-			dict(summarize=FTCommandsMixin.Summarize(separator='|')),
+			dict(summarize=Summarize(separator='|')),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SUMMARIZE', 'SEPARATOR', "'|'"],
 		),
 		(
 			('foobar',),
-			dict(summarize=FTCommandsMixin.Summarize(
+			dict(summarize=Summarize(
 				field_names=['myfield1', 'myfield2'], separator=':)', fragment_total=2, fragment_length=2
 			)),
 			[
@@ -142,23 +142,23 @@ pytestmark = [pytest.mark.skip('new version')]
 		# HIGHLIGHT
 		(
 			('foobar',),
-			dict(highlight=FTCommandsMixin.Highlight()),
+			dict(highlight=Highlight()),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'HIGHLIGHT'],
 		),
 		(
 			('foobar',),
-			dict(highlight=FTCommandsMixin.Highlight(field_names=['myfield1', 'myfield2', 'myfield3'])),
+			dict(highlight=Highlight(field_names=['myfield1', 'myfield2', 'myfield3'])),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'HIGHLIGHT', 'FIELDS', 3, 'myfield1', 'myfield2', 'myfield3'],
 		),
 		(
 			('foobar',),
-			dict(highlight=FTCommandsMixin.Highlight(open_tag='<i>', close_tag='</i>')),
+			dict(highlight=Highlight(open_tag='<i>', close_tag='</i>')),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'HIGHLIGHT', 'TAGS', '<i>', '</i>'],
 		),
 		(
 			('foobar',),
 			dict(
-				highlight=FTCommandsMixin.Highlight(field_names=['myfield1', 'myfield2'], open_tag='<i>', close_tag='</i>')
+				highlight=Highlight(field_names=['myfield1', 'myfield2'], open_tag='<i>', close_tag='</i>')
 			),
 			[
 				'FT.SEARCH', 'shakespeare', "'foobar'",
@@ -174,13 +174,13 @@ pytestmark = [pytest.mark.skip('new version')]
 		# SLOP | INORDER
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.IN_ORDER, slop=4),
+			dict(flags=SearchFlags.IN_ORDER, slop=4),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SLOP', 4, 'INORDER'],
 		),
 		# LANGUAGE
 		(
 			('foobar',),
-			dict(language=FTCommandsMixin.Languages.DUTCH),
+			dict(language=Languages.DUTCH),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'LANGUAGE', 'dutch'],
 		),
 		# EXPANDER
@@ -210,19 +210,19 @@ pytestmark = [pytest.mark.skip('new version')]
 		# SORTBY | ASC
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.ASC, sort_by='myfield'),
+			dict(flags=SearchFlags.ASC, sort_by='myfield'),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SORTBY', 'myfield', 'ASC'],
 		),
 		# SORTBY | DESC
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.DESC, sort_by='myfield'),
+			dict(flags=SearchFlags.DESC, sort_by='myfield'),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SORTBY', 'myfield', 'DESC'],
 		),
 		# SORTBY | ASC prevails over DESC
 		(
 			('foobar',),
-			dict(flags=FTCommandsMixin.SearchFlags.DESC | FTCommandsMixin.SearchFlags.ASC, sort_by='myfield'),
+			dict(flags=SearchFlags.DESC | SearchFlags.ASC, sort_by='myfield'),
 			['FT.SEARCH', 'shakespeare', "'foobar'", 'SORTBY', 'myfield', 'ASC'],
 		),
 		# LIMIT
@@ -269,7 +269,7 @@ pytestmark = [pytest.mark.skip('new version')]
 		'LIMIT',
 	]
 )
-async def test_search(args, kwargs, expected, mocked_redisearch):
-	client = mocked_redisearch('shakespeare')
-	await client.search(*args, **kwargs)
-	client.redis.execute.assert_called_once_with(*expected)
+@mock.patch('redicalsearch.mixin._convert_search_result')
+async def test_search(__convert_search_result, args, kwargs, expected, mocked_redicalsearch):
+	mocked_redicalsearch.ft.search('shakespeare', *args, **kwargs)
+	mocked_redicalsearch.resource.execute.assert_called_once_with(*expected, conversion_func=__convert_search_result())

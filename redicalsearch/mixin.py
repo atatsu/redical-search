@@ -5,6 +5,7 @@ from enum import auto, unique, Enum, Flag
 from typing import (
 	Any,
 	Awaitable,
+	Callable,
 	ClassVar,
 	Dict,
 	List,
@@ -28,7 +29,7 @@ from .const import (
 	FullTextCommands,
 )
 from .exception import IndexExistsError, UnknownIndexError
-from .flag import CreateFlags
+from .flag import CreateFlags, SearchFlags
 from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
@@ -43,9 +44,7 @@ __all__: List[str] = [
 	'Languages',
 	'NumericFilter',
 	'NumericFilterFlags',
-	'ReplaceOptions',
 	'FTCommandsMixin',
-	'SearchFlags',
 	'Structures',
 	'Summarize',
 ]
@@ -93,25 +92,6 @@ class Structures(Enum):
 
 	def __str__(self) -> str:
 		return str(self.value)
-
-
-class ReplaceOptions(Flag):
-	DEFAULT = auto()
-	PARTIAL = auto()
-	NO_CREATE = auto()
-
-
-class SearchFlags(Flag):
-	ASC = auto()
-	DESC = auto()
-	EXPLAIN_SCORE = auto()
-	IN_ORDER = auto()
-	NO_CONTENT = auto()
-	VERBATIM = auto()
-	NO_STOPWORDS = auto()
-	WITH_SCORES = auto()
-	WITH_PAYLOADS = auto()
-	WITH_SORT_KEYS = auto()
 
 
 class GeoFilterUnits(Enum):
@@ -210,6 +190,37 @@ def _convert_index_info(response: List[Any]) -> IndexInfo:
 	x: int
 	mapped: Dict[str, Any] = {response[x]: response[x + 1] for x in range(0, len(response), 2)}
 	return IndexInfo(**mapped)
+
+
+def _convert_search_result(
+	offset: int, limit: int, document_cls: Optional[Type[Document]]
+) -> Callable[[List[Any]], SearchResult]:
+	def _inner(response: List[Any]) -> SearchResult:
+		total: int = response[0]
+		x: int
+		y: int
+		# massage the results into the following format:
+		# [
+		#   {
+		#     'document_id': '<id>',
+		#     'document': {
+		#       '<field>': <value>,
+		#       ...
+		#     }
+		#     ...
+		#   }
+		# ]
+		formatted: List[Dict[str, Any]] = [
+			dict(
+				document_id=response[x],
+				document=dict(_document_cls=document_cls, **{
+					response[x + 1][y]: response[x + 1][y + 1] for y in range(0, len(response[x + 1]), 2)
+				})
+			)
+			for x in range(1, len(response[1:]), 2)
+		]
+		return SearchResult(documents=formatted, count=len(formatted), total=total, offset=offset, limit=limit)
+	return _inner
 
 
 class Commands(RedicalBase):
@@ -334,7 +345,7 @@ class Commands(RedicalBase):
 		command: List[str] = [str(FullTextCommands.INFO), index_name]
 		return self.execute(*command, conversion_func=_convert_index_info, error_func=_check_unknown_index_error)
 
-	async def search(
+	def search(
 		self,
 		index_name: str,
 		/,
@@ -356,11 +367,12 @@ class Commands(RedicalBase):
 		slop: Optional[int] = None,
 		sort_by: Optional[str] = None,
 		summarize: Optional[Summarize] = None,
-	) -> SearchResult:
+	) -> Awaitable[SearchResult]:
 		"""
 		Searches the index with a textual query.
 
 		Args:
+			index_name: Name of the index to run the search against.
 			query: The text query to search.
 			document_cls:
 			expander: Use a custom query expander instead of the stemmer.
@@ -570,31 +582,7 @@ class Commands(RedicalBase):
 			command.extend([str(CommandSearchParameters.LIMIT), offset, limit_])
 
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		raw_results: List[Any] = await self.execute(*command)
-		total: int = raw_results[0]
-		x: int
-		y: int
-		# massage the results into the following format:
-		# [
-		#   {
-		#     'document_id': '<id>',
-		#     'document': {
-		#       '<field>': <value>,
-		#       ...
-		#     }
-		#     ...
-		#   }
-		# ]
-		formatted: List[Dict[str, Any]] = [
-			dict(
-				document_id=raw_results[x],
-				document=dict(_document_cls=document_cls, **{
-					raw_results[x + 1][y]: raw_results[x + 1][y + 1] for y in range(0, len(raw_results[x + 1]), 2)
-				})
-			)
-			for x in range(1, len(raw_results[1:]), 2)
-		]
-		return SearchResult(documents=formatted, count=len(formatted), total=total, offset=offset, limit=limit_)
+		return self.execute(*command, conversion_func=_convert_search_result(offset, limit_, document_cls))
 
 
 class FTCommandsMixin(RedicalBase):
@@ -610,11 +598,3 @@ class FTCommandsMixin(RedicalBase):
 	def __init__(self, resource: RedicalResource) -> None:
 		super().__init__(resource)
 		self._ft = Commands(resource)
-
-	GeoFilter: ClassVar[Type[GeoFilter]] = GeoFilter
-	Highlight: ClassVar[Type[Highlight]] = Highlight
-	Languages: ClassVar[Type[Languages]] = Languages
-	NumericFilter: ClassVar[Type[NumericFilter]] = NumericFilter
-	ReplaceOptions: ClassVar[Type[ReplaceOptions]] = ReplaceOptions
-	SearchFlags: ClassVar[Type[SearchFlags]] = SearchFlags
-	Summarize: ClassVar[Type[Summarize]] = Summarize

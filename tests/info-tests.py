@@ -4,7 +4,7 @@ from redicalsearch.mixin import _check_unknown_index_error, _convert_index_info
 def test_info(mocked_redicalsearch):
 	mocked_redicalsearch.ft.info('myindex')
 	mocked_redicalsearch.resource.execute.assert_called_once_with(
-		'FT.INFO', 'myindex', error_func=_check_unknown_index_error
+		'FT.INFO', 'myindex', conversion_func=_convert_index_info, error_func=_check_unknown_index_error
 	)
 
 
@@ -88,7 +88,7 @@ def test_index_info_conversion():
 		'offset_bits_per_record_avg',
 		'8',
 		'hash_indexing_failures',
-		'0',
+		'10',
 		'indexing',
 		'0',
 		'percent_indexed',
@@ -131,6 +131,8 @@ def test_index_info_conversion():
 		number_of_documents=0,
 		number_of_terms=691356,
 		number_of_records=0,
+		percent_indexed=1.0,
+		hash_indexing_failures=10,
 	)
 	converted = _convert_index_info(response)
 	assert expected == converted.dict()
