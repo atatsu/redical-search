@@ -6,7 +6,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 async def test_info(redical):
-	await redical.ft.create('myindex', TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE))
+	await redical.ft.create(
+		'myindex', TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE)
+	)
 	info = await redical.ft.info('myindex')
 	assert isinstance(info, IndexInfo)
 	assert 'myindex' == info.name

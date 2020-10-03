@@ -31,39 +31,30 @@ async def client(redical, joined):
 	async with redical as pipe:
 		pipe.hset(
 			'user:1',
-			'username',
-			'arenthop',
-			*dict(
-				joined=joined + day,
-				location='-3.9264,57.5243',
-				password_hash='secret1',
-				avatar='avatar1',
-				phrase='hello world'
-			).items()
+			username='arenthop',
+			joined=joined + day,
+			location='-3.9264,57.5243',
+			password_hash='secret1',
+			avatar='avatar1',
+			phrase='hello world'
 		)
 		pipe.hset(
 			'user:2',
-			'username',
-			'pethroul',
-			*dict(
-				joined=joined + day * 2,
-				location='55.584,54.4435',
-				password_hash='secret2',
-				avatar='avatar2',
-				phrase='world hello'
-			).items()
+			username='pethroul',
+			joined=joined + day * 2,
+			location='55.584,54.4435',
+			password_hash='secret2',
+			avatar='avatar2',
+			phrase='world hello'
 		)
 		pipe.hset(
 			'user:3',
-			'username',
-			'cobiumet',
-			*dict(
-				joined=joined + day * 3,
-				location='23.7275,37.9838',
-				password_hash='secret3',
-				avatar='avatar3',
-				phrase='hello'
-			).items()
+			username='cobiumet',
+			joined=joined + day * 3,
+			location='23.7275,37.9838',
+			password_hash='secret3',
+			avatar='avatar3',
+			phrase='hello'
 		)
 		fut = pipe.ft.info('user')
 	info = await fut
