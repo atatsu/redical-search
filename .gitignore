@@ -2,3 +2,4 @@ virtualenv/
 *.egg-info/
 tags
 __pycache__/
+tags.*

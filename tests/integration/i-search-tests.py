@@ -104,3 +104,39 @@ async def test_basic_search_model(client, joined):
 	assert results.count > 0
 	assert isinstance(results.documents[0].document, MyDocument), type(results.documents[0].document)
 	assert results.documents[0].document.username == 'arenthop'
+
+
+async def test_basic_search_pipeline(client):
+	async with client as pipe:
+		fut1 = pipe.set('foo', 'bar')
+		fut2 = pipe.ft.search('user', '@username:arenthop')
+		fut3 = pipe.get('foo')
+
+	assert True is await fut1
+	results = await fut2
+	assert 1 == results.total
+	assert 1 == results.count
+	assert 0 == results.offset
+	assert 0 == results.limit
+	assert isinstance(results.documents[0], DocumentWrap)
+	assert isinstance(results.documents[0].document, dict)
+	assert 'bar' == await fut3
+
+
+async def test_basic_search_model_pipeline(client):
+	class MyDocument(Document):
+		username: str
+		joined: datetime
+		phrase: str
+
+	async with client as pipe:
+		fut1 = pipe.set('foo', 'bar')
+		fut2 = pipe.ft.search('user', '@username:arenthop', document_cls=MyDocument)
+		fut3 = pipe.get('foo')
+
+	assert True is await fut1
+	results = await fut2
+	assert results.count > 0
+	assert isinstance(results.documents[0].document, MyDocument), type(results.documents[0].document)
+	assert 'arenthop' == results.documents[0].document.username
+	assert 'bar' == await fut3
