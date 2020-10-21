@@ -25,6 +25,14 @@ async def test_info(redical):
 	assert ('aprefix:', 'anotherprefix:') == info.definition.prefixes
 
 
+async def test_info_no_prefix(redical):
+	await redical.ft.create(
+		'myindex', TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE),
+	)
+	info = await redical.ft.info('myindex')
+	assert () == info.definition.prefixes
+
+
 async def test_info_no_index(redical):
 	with pytest.raises(UnknownIndexError):
 		await redical.ft.info('nonexistent')

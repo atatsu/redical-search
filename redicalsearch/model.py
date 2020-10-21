@@ -26,7 +26,9 @@ class IndexInfo(BaseModel):
 	@validator('definition', pre=True)
 	def format_definition(cls, v: Sequence[str]) -> IndexDefinition:
 		x: int
-		mapped: Dict[str, str] = {v[x]: v[x + 1] for x in range(0, len(v), 2)}
+		mapped: Dict[str, Any] = {v[x]: v[x + 1] for x in range(0, len(v), 2)}
+		prefix: str
+		mapped['prefixes'] = [prefix for prefix in mapped['prefixes'] if prefix != '']
 		return IndexDefinition(**mapped)
 
 	@validator('field_defs', pre=True)
