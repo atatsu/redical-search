@@ -230,7 +230,7 @@ class Commands(RedicalBase):
 		/,
 		*fields: 'Field',
 		on: Structures = Structures.HASH,
-		prefix: Optional[Sequence[str]] = None,
+		prefixes: Optional[Sequence[str]] = None,
 		filter: Optional[str] = None,
 		flags: Optional[CreateFlags] = None,
 		language: Optional[Languages] = None,
@@ -251,7 +251,7 @@ class Commands(RedicalBase):
 
 				Note:
 					Currently only supports `Structures.HASH`.
-			prefix: Tells the index which keys it should index. If not supplied all keys
+			prefixes: Tells the index which keys it should index. If not supplied all keys
 				will be indexed.
 			filter: A filter expression with the full *RediSearch* aggregation expression
 				language.
@@ -291,9 +291,9 @@ class Commands(RedicalBase):
 					`CreateFlags.SKIP_INITIAL_SCAN` to avoid costly scanning.
 		"""
 		command: List[Any] = [str(FullTextCommands.CREATE), index_name, str(CommandCreateParameters.ON), str(on)]
-		if prefix is not None:
-			prefix = tuple(prefix)
-			command.extend([str(CommandCreateParameters.PREFIX), len(prefix), *prefix])
+		if prefixes is not None:
+			prefixes = tuple(prefixes)
+			command.extend([str(CommandCreateParameters.PREFIX), len(prefixes), *prefixes])
 		if filter is not None:
 			command.extend([str(CommandCreateParameters.FILTER), str(filter)])
 		if language is not None:

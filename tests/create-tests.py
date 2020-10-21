@@ -14,7 +14,7 @@ from redicalsearch.mixin import _check_index_exists_error
 		),
 		(
 			('myindex', *(TextField('myfield'),)),
-			dict(prefix=['doc:', 'aprefix:']),
+			dict(prefixes=['doc:', 'aprefix:']),
 			['FT.CREATE', 'myindex', 'ON', 'HASH', 'PREFIX', 2, 'doc:', 'aprefix:', 'SCHEMA', 'myfield', 'TEXT'],
 		),
 		(
@@ -102,7 +102,7 @@ from redicalsearch.mixin import _check_index_exists_error
 	],
 	ids=[
 		'no parameters',
-		'prefix',
+		'prefixes',
 		'filter',
 		'language',
 		'language_field',
