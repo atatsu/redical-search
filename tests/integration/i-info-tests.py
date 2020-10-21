@@ -7,7 +7,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 async def test_info(redical):
 	await redical.ft.create(
-		'myindex', TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE)
+		'myindex', TextField('line', TextField.SORTABLE), NumericField('page', NumericField.SORTABLE),
+		prefixes=('aprefix:', 'anotherprefix:'),
 	)
 	info = await redical.ft.info('myindex')
 	assert isinstance(info, IndexInfo)
@@ -21,6 +22,7 @@ async def test_info(redical):
 	assert 0 == info.number_of_documents
 	assert 0 == info.number_of_terms
 	assert 0 == info.number_of_records
+	assert ('aprefix:', 'anotherprefix:') == info.definition.prefixes
 
 
 async def test_info_no_index(redical):

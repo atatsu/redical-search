@@ -25,7 +25,7 @@ async def client(redical, joined):
 		GeoField('location'),
 		TextField('password_hash', TextField.NO_STEM),
 		TextField('phrase'),
-		prefixes='user:',
+		prefixes=('user:',),
 	)
 	day = timedelta(days=1).total_seconds()
 	async with redical as pipe:

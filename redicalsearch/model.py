@@ -1,12 +1,17 @@
-from typing import Any, Dict, List, Mapping, Sequence, Type
+from typing import Any, Dict, List, Mapping, Sequence, Tuple, Type
 
 from pydantic import root_validator, validator, BaseModel, Field
 
 __all__: List[str] = ['Document', 'DocumentWrap', 'IndexInfo', 'SearchResult']
 
 
+class IndexDefinition(BaseModel):
+	prefixes: Tuple[str, ...]
+
+
 class IndexInfo(BaseModel):
 	name: str = Field(..., alias='index_name')
+	definition: IndexDefinition = Field(..., alias='index_definition')
 	options: List[str] = Field(..., alias='index_options')
 	# FIXME: `BaseModel.fields` is being deprecated in favor of `BaseModel.__fields__`;
 	#        once it is actually removed `field_defs` can be renamed to `fields` and the
@@ -17,6 +22,12 @@ class IndexInfo(BaseModel):
 	number_of_terms: int = Field(..., alias='num_terms')
 	number_of_records: int = Field(..., alias='num_records')
 	percent_indexed: float
+
+	@validator('definition', pre=True)
+	def format_definition(cls, v: Sequence[str]) -> IndexDefinition:
+		x: int
+		mapped: Dict[str, str] = {v[x]: v[x + 1] for x in range(0, len(v), 2)}
+		return IndexDefinition(**mapped)
 
 	@validator('field_defs', pre=True)
 	def format_field_defs(cls, v: Sequence[Sequence[str]]) -> Dict[str, Any]:
