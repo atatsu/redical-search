@@ -359,8 +359,9 @@ class Commands(RedicalBase):
 		in_keys: Optional[Sequence[str]] = None,
 		in_fields: Optional[Sequence[str]] = None,
 		language: Optional[Languages] = None,
-		limit: Optional[Tuple[int, int]] = None,
+		limit: int = 10,
 		numeric_filter: Optional[Sequence[NumericFilter]] = None,
+		offset: int = 0,
 		payload: Optional[str] = None,
 		return_fields: Optional[Sequence[str]] = None,
 		scorer: Optional[str] = None,
@@ -435,11 +436,10 @@ class Commands(RedicalBase):
 				Note:
 					If querying documents in Chinese, this should be set to `Languages.CHINESE` in
 					order to properly tokenize the query terms.
-			limit: Limit the results to the supplied offset and count in the form of `(offset, count)`.
+			limit: Limit the results of the supplied query, offset by `offset`.
 
-				Note:
-					You can use `(0, 0)` to count the number of documents in the result set without
-					actually returning them.
+				Note: A `limit` of `0` combined with an `offset` of `0` can be used to count
+					the number of documents in the result set without actually returning them.
 			numeric_filter: Limit results to those having numeric values ranging between the supplied
 				minimum and maximum values. If no minimum is supplied `-inf` will be used. If no
 				maximum is supplied `+inf` will be used.
@@ -448,11 +448,16 @@ class Commands(RedicalBase):
 
 				Note: It is also possible to apply numeric filtering via the actual query.
 					See https://oss.redislabs.com/redisearch/Query_Syntax/
+			offset: Offset to begin returning results at.
+
+				Note: An `offset` of `0` combined with a `limit` of `0` can be used to count
+					the number of documents in the result set wihtout actually returning them.
 			payload: Add an arbitrary binary safe payload that will be exposed to custom scoring
 				functions.
 
 				Note: See https://oss.redislabs.com/redisearch/Extensions/
-			return_fields: Limits which fields are returned from the document.
+			return_fields: Limits which fields are returned from the document by supplying a sequence
+				of field names.
 			scorer: Use a custom scoring function.
 
 				Note: See https://oss.redislabs.com/redisearch/Extensions/
@@ -469,6 +474,10 @@ class Commands(RedicalBase):
 
 				Note: See https://oss.redislabs.com/redisearch/Highlight/
 		"""
+		if not isinstance(limit, int):
+			raise TypeError("'limit' expected to be integer")
+		if not isinstance(offset, int):
+			raise TypeError("'offset' expected to be integer")
 		# kwargs are handled in the order they appear in the `FT.SEARCH` docs:
 		# https://oss.redislabs.com/redisearch/Commands/#ftsearch
 		command: List[Any] = [str(FullTextCommands.SEARCH), index_name, repr(query)]
@@ -575,14 +584,9 @@ class Commands(RedicalBase):
 			elif flags is not None and SearchFlags.DESC in flags:
 				command.append(str(CommandSearchParameters.DESC))
 
-		offset: int = 0
-		limit_: int = 0
-		if limit is not None:
-			offset, limit_ = (int(limit[0]), int(limit[1]))
-			command.extend([str(CommandSearchParameters.LIMIT), offset, limit_])
-
+		command.extend([str(CommandSearchParameters.LIMIT), offset, limit])
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		return self.execute(*command, conversion_func=_convert_search_result(offset, limit_, document_cls))
+		return self.execute(*command, conversion_func=_convert_search_result(offset, limit, document_cls))
 
 
 class FTCommandsMixin(RedicalBase):

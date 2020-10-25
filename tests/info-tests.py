@@ -23,7 +23,7 @@ def test_index_info_conversion():
 				'thing:',
 			],
 			'filter',
-			'startswith(@__key, "thing:")'
+			'startswith(@__key, "thing:")',
 			'language_field',
 			'__language',
 			'default_score',
@@ -103,6 +103,9 @@ def test_index_info_conversion():
 	expected = dict(
 		name='wikipedia',
 		options=[],
+		definition=dict(
+			prefixes=('thing:',),
+		),
 		field_defs={
 			'title': dict(
 				type='TEXT',

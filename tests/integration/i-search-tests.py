@@ -65,8 +65,8 @@ async def client(redical, joined):
 @pytest.mark.parametrize(
 	'query,kwargs,expected_total,expected_count,expected_offset,expected_limit',
 	[
-		('(@username:arenthop|pethroul|cobiumet)', {}, 3, 3, 0, 0),
-		('(@username:arenthop|pethroul|cobiumet)', dict(limit=(1, 2)), 3, 2, 1, 2),
+		('(@username:arenthop|pethroul|cobiumet)', {}, 3, 3, 0, 10),
+		('(@username:arenthop|pethroul|cobiumet)', dict(limit=2, offset=1), 3, 2, 1, 2),
 	],
 )
 async def test_basic_search(query, kwargs, expected_total, expected_count, expected_offset, expected_limit, client):
@@ -117,7 +117,7 @@ async def test_basic_search_pipeline(client):
 	assert 1 == results.total
 	assert 1 == results.count
 	assert 0 == results.offset
-	assert 0 == results.limit
+	assert 10 == results.limit
 	assert isinstance(results.documents[0], DocumentWrap)
 	assert isinstance(results.documents[0].document, dict)
 	assert 'bar' == await fut3
