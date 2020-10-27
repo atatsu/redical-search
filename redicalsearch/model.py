@@ -1,8 +1,8 @@
-from typing import Any, Dict, List, Mapping, Sequence, Tuple, Type
+from typing import cast, Any, Dict, Generic, List, Mapping, Sequence, Tuple, Type, TypeVar, Union
 
 from pydantic import root_validator, validator, BaseModel, Field
 
-__all__: List[str] = ['Document', 'DocumentWrap', 'IndexInfo', 'SearchResult']
+__all__: List[str] = ['Document', 'IndexInfo', 'SearchResult']
 
 
 class IndexDefinition(BaseModel):
@@ -50,37 +50,17 @@ class IndexInfo(BaseModel):
 
 
 class Document(BaseModel):
-	class Config:
-		allow_mutation: bool = False
-
-
-class DocumentWrap(BaseModel):
-	id: str = Field(..., alias='document_id')
-	# We technically allow subclasses of `Document` for `document` in place of a dict
-	# but we're handling it in the root validator as it is being magically applied via
-	# the `_document_cls` dict entry that gets added from `RediSearch.search()` via a kwarg.
-	document: Dict[str, Any]
-
-	@root_validator
-	def check_model(cls, values: Mapping[str, Any]) -> Dict[str, Any]:
-		v: Dict[str, Any] = dict(values)
-		if 'document' not in v or '_document_cls' not in v['document']:
-			return v
-
-		if '_document_cls' in v['document'] and v['document']['_document_cls'] is None:
-			del v['document']['_document_cls']
-			return v
-
-		doc_cls: Type[Document] = v['document']['_document_cls']
-		v['document'] = doc_cls(**v['document'])
-		return v
+	id: str
 
 	class Config:
 		allow_mutation: bool = False
 
 
-class SearchResult(BaseModel):
-	documents: List[DocumentWrap]
+T = TypeVar('T')
+
+
+class SearchResult(Generic[T], BaseModel):
+	documents: List[T]
 	"""
 	The documents returned by the query.
 	"""
@@ -100,6 +80,23 @@ class SearchResult(BaseModel):
 	"""
 	The total number of results based on the executed query.
 	"""
+
+	@root_validator(pre=True)
+	def check_model(cls, values: Mapping[str, Any]) -> Dict[str, Any]:
+		v: Dict[str, Any] = dict(values)
+		docs: List[Union[T, Dict[str, Any]]] = []
+		raw_docs: List[Dict[str, Any]] = v['documents']
+		raw_doc: Dict[str, Any]
+		for raw_doc in raw_docs:
+			if '_document_cls' not in raw_doc or raw_doc['_document_cls'] is None:
+				raw_doc.pop('_document_cls', None)
+				docs.append(raw_doc)
+				continue
+			doc_cls: Type[Document] = raw_doc.pop('_document_cls')
+			instance: Document = doc_cls(**raw_doc)
+			docs.append(cast(T, instance))
+		v['documents'] = docs
+		return v
 
 	class Config:
 		allow_mutation: bool = False

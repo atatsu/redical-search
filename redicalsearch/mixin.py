@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from enum import auto, unique, Enum, Flag
 from typing import (
+	overload,
 	Any,
 	Awaitable,
 	Callable,
@@ -13,6 +14,7 @@ from typing import (
 	Sequence,
 	Tuple,
 	Type,
+	TypeVar,
 	Union,
 	TYPE_CHECKING,
 )
@@ -34,7 +36,6 @@ from .model import Document, IndexInfo, SearchResult
 
 if TYPE_CHECKING:
 	from .field import Field
-
 
 __all__: List[str] = [
 	'Geo',
@@ -194,8 +195,8 @@ def _convert_index_info(response: List[Any]) -> IndexInfo:
 
 def _convert_search_result(
 	offset: int, limit: int, document_cls: Optional[Type[Document]]
-) -> Callable[[List[Any]], SearchResult]:
-	def _inner(response: List[Any]) -> SearchResult:
+) -> Callable[[List[Any]], SearchResult[Document]]:
+	def _inner(response: List[Any]) -> SearchResult[Document]:
 		total: int = response[0]
 		x: int
 		y: int
@@ -212,8 +213,8 @@ def _convert_search_result(
 		# ]
 		formatted: List[Dict[str, Any]] = [
 			dict(
-				document_id=response[x],
-				document=dict(_document_cls=document_cls, **{
+				id=response[x],
+				**dict(_document_cls=document_cls, **{
 					response[x + 1][y]: response[x + 1][y + 1] for y in range(0, len(response[x + 1]), 2)
 				})
 			)
@@ -221,6 +222,9 @@ def _convert_search_result(
 		]
 		return SearchResult(documents=formatted, count=len(formatted), total=total, offset=offset, limit=limit)
 	return _inner
+
+
+D = TypeVar('D', bound=Document)
 
 
 class Commands(RedicalBase):
@@ -345,30 +349,34 @@ class Commands(RedicalBase):
 		command: List[str] = [str(FullTextCommands.INFO), index_name]
 		return self.execute(*command, conversion_func=_convert_index_info, error_func=_check_unknown_index_error)
 
+	@overload
 	def search(
-		self,
-		index_name: str,
-		/,
-		query: str,
-		*,
-		document_cls: Optional[Type[Document]] = None,
-		expander: Optional[str] = None,
-		flags: Optional[SearchFlags] = None,
-		geo_filter: Optional[GeoFilter] = None,
-		highlight: Optional[Highlight] = None,
-		in_keys: Optional[Sequence[str]] = None,
-		in_fields: Optional[Sequence[str]] = None,
-		language: Optional[Languages] = None,
-		limit: int = 10,
-		numeric_filter: Optional[Sequence[NumericFilter]] = None,
-		offset: int = 0,
-		payload: Optional[str] = None,
-		return_fields: Optional[Sequence[str]] = None,
-		scorer: Optional[str] = None,
-		slop: Optional[int] = None,
-		sort_by: Optional[str] = None,
-		summarize: Optional[Summarize] = None,
-	) -> Awaitable[SearchResult]:
+		self, index_name: str, /, query: str, *, document_cls: Type[D], expander: Optional[str] = None,
+		flags: Optional[SearchFlags] = None, geo_filter: Optional[GeoFilter] = None,
+		highlight: Optional[Highlight] = None, in_keys: Optional[Sequence[str]] = None,
+		in_fields: Optional[Sequence[str]] = None, language: Optional[Languages] = None, limit: int = 10,
+		numeric_filter: Optional[Sequence[NumericFilter]] = None, offset: int = 0, payload: Optional[str] = None,
+		return_fields: Optional[Sequence[str]] = None, scorer: Optional[str] = None, slop: Optional[int] = None,
+		sort_by: Optional[str] = None, summarize: Optional[Summarize] = None
+	) -> Awaitable[SearchResult[D]]:
+		...
+	@overload  # noqa: E301
+	def search(
+		self, index_name: str, /, query: str, *, document_cls: None = None, expander: Optional[str] = None,
+		flags: Optional[SearchFlags] = None, geo_filter: Optional[GeoFilter] = None,
+		highlight: Optional[Highlight] = None, in_keys: Optional[Sequence[str]] = None,
+		in_fields: Optional[Sequence[str]] = None, language: Optional[Languages] = None,
+		limit: int = 10, numeric_filter: Optional[Sequence[NumericFilter]] = None, offset: int = 0,
+		payload: Optional[str] = None, return_fields: Optional[Sequence[str]] = None, scorer: Optional[str] = None,
+		slop: Optional[int] = None, sort_by: Optional[str] = None, summarize: Optional[Summarize] = None
+	) -> Awaitable[SearchResult[Dict[str, Any]]]:
+		...
+	def search(  # noqa: E301
+		self, index_name, /, query, *, document_cls=None, expander=None, flags=None,
+		geo_filter=None, highlight=None, in_keys=None, in_fields=None, language=None,
+		limit=10, numeric_filter=None, offset=0, payload=None, return_fields=None,
+		scorer=None, slop=None, sort_by=None, summarize=None
+	):
 		"""
 		Searches the index with a textual query.
 

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest  # type: ignore
 
 from redicalsearch import (
-	Document, DocumentWrap, GeoField, NumericField, SearchFlags, SearchResult, TextField,
+	Document, GeoField, NumericField, SearchFlags, SearchResult, TextField,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -76,15 +76,14 @@ async def test_basic_search(query, kwargs, expected_total, expected_count, expec
 	assert expected_count == results.count
 	assert expected_offset == results.offset
 	assert expected_limit == results.limit
-	assert isinstance(results.documents[0], DocumentWrap)
-	assert isinstance(results.documents[0].document, dict)
+	assert isinstance(results.documents[0], dict)
 
 
 async def test_cleanup_document_cls(client, joined):
 	days = timedelta(days=4).total_seconds()
 	results = await client.ft.search('user', f'(@joined:[{joined} {joined + days}])')
 	for entry in results.documents:
-		assert '_document_cls' not in entry.document
+		assert '_document_cls' not in entry
 
 
 async def test_basic_search_model(client, joined):
@@ -102,8 +101,8 @@ async def test_basic_search_model(client, joined):
 		sort_by='username',
 	)
 	assert results.count > 0
-	assert isinstance(results.documents[0].document, MyDocument), type(results.documents[0].document)
-	assert results.documents[0].document.username == 'arenthop'
+	assert isinstance(results.documents[0], MyDocument), type(results.documents[0])
+	assert results.documents[0].username == 'arenthop'
 
 
 async def test_basic_search_pipeline(client):
@@ -118,8 +117,7 @@ async def test_basic_search_pipeline(client):
 	assert 1 == results.count
 	assert 0 == results.offset
 	assert 10 == results.limit
-	assert isinstance(results.documents[0], DocumentWrap)
-	assert isinstance(results.documents[0].document, dict)
+	assert isinstance(results.documents[0], dict)
 	assert 'bar' == await fut3
 
 
@@ -137,6 +135,6 @@ async def test_basic_search_model_pipeline(client):
 	assert True is await fut1
 	results = await fut2
 	assert results.count > 0
-	assert isinstance(results.documents[0].document, MyDocument), type(results.documents[0].document)
-	assert 'arenthop' == results.documents[0].document.username
+	assert isinstance(results.documents[0], MyDocument), type(results.documents[0])
+	assert 'arenthop' == results.documents[0].username
 	assert 'bar' == await fut3
