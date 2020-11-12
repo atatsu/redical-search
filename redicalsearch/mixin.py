@@ -488,7 +488,7 @@ class Commands(RedicalBase):
 			raise TypeError("'offset' expected to be integer")
 		# kwargs are handled in the order they appear in the `FT.SEARCH` docs:
 		# https://oss.redislabs.com/redisearch/Commands/#ftsearch
-		command: List[Any] = [str(FullTextCommands.SEARCH), index_name, repr(query)]
+		command: List[Any] = [str(FullTextCommands.SEARCH), index_name, str(query)]
 		if flags is not None:
 			if SearchFlags.NO_CONTENT in flags:
 				command.append(str(CommandSearchParameters.NOCONTENT))
