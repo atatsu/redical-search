@@ -203,11 +203,9 @@ def _convert_search_result(
 		# massage the results into the following format:
 		# [
 		#   {
-		#     'document_id': '<id>',
-		#     'document': {
-		#       '<field>': <value>,
-		#       ...
-		#     }
+		#     'id': '<id>',
+		#     '<field1>': <value1>,
+		#     '<field2>': <value2>,
 		#     ...
 		#   }
 		# ]

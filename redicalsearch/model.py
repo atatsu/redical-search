@@ -1,6 +1,11 @@
-from typing import cast, Any, Dict, Generic, List, Mapping, Sequence, Tuple, Type, TypeVar, Union
+from datetime import datetime
+from typing import cast, Any, Dict, Generic, List, Mapping, Sequence, Tuple, Type, TypeVar, Union, TYPE_CHECKING
 
 from pydantic import root_validator, validator, BaseModel, Field
+
+if TYPE_CHECKING:
+	from pydantic.fields import ModelField
+	from pydantic.typing import AbstractSetIntStr, MappingIntStrAny
 
 __all__: List[str] = ['Document', 'IndexInfo', 'SearchResult']
 
@@ -52,8 +57,59 @@ class IndexInfo(BaseModel):
 class Document(BaseModel):
 	id: str
 
-	class Config:
-		allow_mutation: bool = False
+	def hset(
+		self,
+		*,
+		by_alias: bool = False,
+		exclude: Union['AbstractSetIntStr', 'MappingIntStrAny'] = None,
+		exclude_defaults: bool = False,
+		exclude_unset: bool = False,
+		include: Union['AbstractSetIntStr', 'MappingIntStrAny'] = None,
+	) -> Dict[str, Any]:
+		"""
+		A convenience method for converting this document into a dictionary suitable
+		for use in `Redical#hset`. A number of niceties are also performed on the
+		underlying data:
+			* Any `None` values will have their corresponding keys removed from the resulting
+				dictionary
+			* Any `bool` values will be converted to integers in the resulting dictionary
+			* Any `datetime` values will be converted to unix timestamps (milliseconds)
+			* The `id` attribute is removed from the resulting dictionary
+
+		Note: All keyword parameters are the same as those for pydantic's `BaseModel#dict`.
+
+		Args:
+			by_alias: Whether field aliases should be used as keys in the resulting dictionary.
+			exclude: Fields to exclude from the resulting dictionary.
+			exclude_defaults: Whether fields which are equal to their default values should
+				be excluded from the resulting dictionary.
+			exclude_unset: Whether fields which were not explicitly set should be excluded
+				from the resulting dictionary.
+			include: Fields to include in the resulting dictionary.
+
+		Returns:
+			A copy of this document in dictionary form.
+		"""
+		d: Dict[str, Any] = super().dict(
+			by_alias=by_alias,
+			exclude=exclude,
+			exclude_defaults=exclude_defaults,
+			exclude_none=True,
+			exclude_unset=exclude_unset,
+			include=include
+		)
+		attr: str
+		field: 'ModelField'
+		for attr, field in self.__fields__.items():
+			if attr in d and issubclass(field.type_, bool):
+				d[attr] = int(d[attr])
+				continue
+			if attr in d and issubclass(field.type_, datetime):
+				# FIXME: Maybe don't do this if the datetime is naive?
+				d[attr] = int(d[attr].timestamp() * 1000)
+				continue
+		del d['id']
+		return d
 
 
 T = TypeVar('T')
