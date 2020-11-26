@@ -48,6 +48,7 @@ services:
       - ./:/code:rw
 
   redis:
+    container_name: redical-search-redis
     image: redislabs/redisearch:latest
     ports:
       - ${REDICALSEARCH_REDIS_PORT:-6479}:6379
