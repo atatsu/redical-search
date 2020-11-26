@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import logging
-from enum import auto, unique, Enum, Flag
 from typing import (
 	overload,
 	Any,
 	Awaitable,
 	Callable,
-	ClassVar,
 	Dict,
 	List,
 	Optional,
@@ -16,11 +14,7 @@ from typing import (
 	Type,
 	TypeVar,
 	Union,
-	TYPE_CHECKING,
 )
-
-from pydantic import BaseModel
-from pydantic.dataclasses import dataclass
 
 from redical import RedicalBase, RedicalResource
 
@@ -31,148 +25,23 @@ from .const import (
 	FullTextCommands,
 )
 from .exception import IndexExistsError, UnknownIndexError
-from .flag import CreateFlags, SearchFlags
 from .model import Document, IndexInfo, SearchResult
+from .option import (
+	CreateFlags,
+	GeoFilter,
+	Highlight,
+	Languages,
+	NumericFilter,
+	NumericFilterFlags,
+	SearchFlags,
+	Structures,
+	Summarize,
+)
+from .schema import Field, Schema
 
-if TYPE_CHECKING:
-	from .field import Field
-
-__all__: List[str] = [
-	'Geo',
-	'GeoFilter',
-	'GeoFilterUnits',
-	'Highlight',
-	'Languages',
-	'NumericFilter',
-	'NumericFilterFlags',
-	'FTCommandsMixin',
-	'Structures',
-	'Summarize',
-]
+__all__: List[str] = ['FTCommandsMixin']
 
 LOG: logging.Logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Geo:
-	latitude: float
-	longitude: float
-
-	def __str__(self) -> str:
-		return f'{self.longitude},{self.latitude}'
-
-
-@unique
-class Languages(Enum):
-	ARABIC: str = 'arabic'
-	CHINESE: str = 'chinese'
-	DANISH: str = 'danish'
-	DUTCH: str = 'dutch'
-	ENGLISH: str = 'english'
-	FINNISH: str = 'finnish'
-	FRENCH: str = 'french'
-	GERMAN: str = 'german'
-	HUNGARIAN: str = 'hungarian'
-	ITALIAN: str = 'italian'
-	NORWEGIAN: str = 'norwegian'
-	PORTUGUESE: str = 'portuguese'
-	ROMANIAN: str = 'romanian'
-	RUSSIAN: str = 'russian'
-	SPANISH: str = 'spanish'
-	SWEDISH: str = 'swedish'
-	TAMIL: str = 'tamil'
-	TURKISH: str = 'turkish'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-@unique
-class Structures(Enum):
-	HASH: str = 'HASH'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-class GeoFilterUnits(Enum):
-	FEET: str = 'ft'
-	KILOMETERS: str = 'km'
-	METERS: str = 'm'
-	MILES: str = 'mi'
-
-	def __str__(self) -> str:
-		return str(self.value)
-
-
-class GeoFilter(BaseModel):
-	Units: ClassVar[Type[GeoFilterUnits]] = GeoFilterUnits
-
-	field: str
-	latitude: float
-	longitude: float
-	radius: float
-	units: GeoFilterUnits
-
-
-class Highlight(BaseModel):
-	"""
-	Highlighting will highlight the found term (and its variants) with a user-defined tag.
-	This may be used to display the matched text in a different typeface using a markup
-	language, or to otherwise make the text appear differently.
-	"""
-	field_names: Optional[Sequence[str]]
-	"""
-	Each field supplied is highlighted. If not specified then *all* fields are highlighted.
-	"""
-	open_tag: Optional[str]
-	"""
-	The opening tag to prepend to each term match.
-	"""
-	close_tag: Optional[str]
-	"""
-	The closing tag to append to each term match.
-	"""
-
-
-class NumericFilterFlags(Flag):
-	EXCLUSIVE_MAX = auto()
-	EXCLUSIVE_MIN = auto()
-
-
-class NumericFilter(BaseModel):
-	Flags: ClassVar[Type[NumericFilterFlags]] = NumericFilterFlags
-
-	field: str
-	maximum: Optional[float]
-	minimum: Optional[float]
-	flags: Optional[NumericFilterFlags]
-
-
-class Summarize(BaseModel):
-	"""
-	Summarization will fragment the text into smaller sized snippets. Each snippet will
-	contain the found term(s) and some additional surrounding context.
-	"""
-	field_names: Optional[Sequence[str]]
-	"""
-	Each field supplied is summarized. If not specified then *all* fields are summarized.
-	"""
-	fragment_total: Optional[int]
-	"""
-	Dictates how many fragments should be returned. If not specified the default value is `3`.
-	"""
-	fragment_length: Optional[int]
-	"""
-	The number of context words each fragment should contain. Context words surround
-	the found term. A higher value will return a larger block of text. If not specified
-	the default value is `20`.
-	"""
-	separator: Optional[str]
-	"""
-	The string used to divide between individual summary snippets. The default is `...`
-	which is common among search engines.
-	"""
 
 
 def _check_index_exists_error(exc: Exception) -> Exception:
@@ -225,12 +94,19 @@ def _convert_search_result(
 D = TypeVar('D', bound=Document)
 
 
+S = TypeVar('S', bound=Schema)
+
+
 class Commands(RedicalBase):
+	@overload
+	def create(self, index_name: str, /, schema: Type[S]) -> Awaitable[bool]:
+		...
+	@overload  # noqa: E301
 	def create(
 		self,
 		index_name: str,
 		/,
-		*fields: 'Field',
+		*fields: Field,
 		on: Structures = Structures.HASH,
 		prefixes: Optional[Sequence[str]] = None,
 		filter: Optional[str] = None,
@@ -243,6 +119,8 @@ class Commands(RedicalBase):
 		stopwords: Optional[Sequence[str]] = None,
 		temporary: Optional[int] = None,
 	) -> Awaitable[bool]:
+		...
+	def create(self, index_name, /, *schema_or_args, **kwargs):  # noqa: E301
 		"""
 		Create an index with the given spec.
 
@@ -292,50 +170,19 @@ class Commands(RedicalBase):
 					When creating temporary indexes consider also using
 					`CreateFlags.SKIP_INITIAL_SCAN` to avoid costly scanning.
 		"""
-		command: List[Any] = [str(FullTextCommands.CREATE), index_name, str(CommandCreateParameters.ON), str(on)]
-		if prefixes is not None:
-			prefixes = tuple(prefixes)
-			command.extend([str(CommandCreateParameters.PREFIX), len(prefixes), *prefixes])
-		if filter is not None:
-			command.extend([str(CommandCreateParameters.FILTER), str(filter)])
-		if language is not None:
-			command.extend([str(CommandCreateParameters.LANGUAGE), str(language)])
-		if language_field is not None:
-			command.extend([str(CommandCreateParameters.LANGUAGE_FIELD), str(language_field)])
-		if payload_field is not None:
-			command.extend([str(CommandCreateParameters.PAYLOAD_FIELD), str(payload_field)])
-		if score is not None:
-			score = float(score)
-			if score < 0 or score > 1:
-				raise ValueError(f'score must be between 0.0 and 1.0, got {score}')
-			command.extend([str(CommandCreateParameters.SCORE), str(score)])
-		if score_field is not None:
-			command.extend([str(CommandCreateParameters.SCORE_FIELD), str(score_field)])
-		if stopwords is not None:
-			stopwords = tuple(stopwords)
-			command.extend([str(CommandCreateParameters.STOPWORDS), len(stopwords), *stopwords])
-		if temporary is not None:
-			command.extend([str(CommandCreateParameters.TEMPORARY), int(temporary)])
-		if flags is not None:
-			if CreateFlags.MAX_TEXT_FIELDS in flags:
-				command.append(str(CommandCreateParameters.MAXTEXTFIELDS))
-			if CreateFlags.NO_FIELDS in flags:
-				command.append(str(CommandCreateParameters.NOFIELDS))
-			if CreateFlags.NO_FREQUENCIES in flags:
-				command.append(str(CommandCreateParameters.NOFREQS))
-			if CreateFlags.NO_HIGHLIGHTS in flags:
-				command.append(str(CommandCreateParameters.NOHL))
-			if CreateFlags.NO_OFFSETS in flags:
-				command.append(str(CommandCreateParameters.NOOFFSETS))
-			if CreateFlags.SKIP_INITIAL_SCAN in flags:
-				command.append(str(CommandCreateParameters.SKIPINITIALSCAN))
+		if len(schema_or_args) > 0 and isinstance(schema_or_args[0], Field):
+			return self._create_from_parameters(index_name, *schema_or_args, **kwargs)
+		is_schema: bool = False
+		try:
+			if len(schema_or_args) > 0 and issubclass(schema_or_args[0], Schema):
+				is_schema = True
+		except TypeError:
+			pass
 
-		command.append(str(CommandCreateParameters.SCHEMA))
-		f: 'Field'
-		x: Any
-		command.extend([x for f in fields for x in f])
-		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		return self.execute(*command, error_func=_check_index_exists_error)
+		if is_schema:
+			return self._create_from_schema(index_name, schema_or_args[0])
+
+		raise ValueError('Need a schema or schema fields')
 
 	def info(self, index_name: str, /) -> Awaitable[IndexInfo]:
 		"""
@@ -593,6 +440,71 @@ class Commands(RedicalBase):
 		command.extend([str(CommandSearchParameters.LIMIT), offset, limit])
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
 		return self.execute(*command, conversion_func=_convert_search_result(offset, limit, document_cls))
+
+	def _create_from_schema(self, index_name: str, schema: Type[S]) -> Awaitable[bool]:
+		options: Dict[str, Any] = schema._get_options()
+		return self._create_from_parameters(index_name, *schema._get_fields(), **options)
+
+	def _create_from_parameters(
+		self,
+		index_name: str,
+		*fields: Field,
+		on: Structures = Structures.HASH,
+		prefixes: Optional[Sequence[str]] = None,
+		filter: Optional[str] = None,
+		flags: Optional[CreateFlags] = None,
+		language: Optional[Languages] = None,
+		language_field: Optional[str] = None,
+		payload_field: Optional[str] = None,
+		score: Optional[Union[float, int]] = None,
+		score_field: Optional[str] = None,
+		stopwords: Optional[Sequence[str]] = None,
+		temporary: Optional[int] = None,
+	) -> Awaitable[bool]:
+		command: List[Any] = [str(FullTextCommands.CREATE), index_name, str(CommandCreateParameters.ON), str(on)]
+		if prefixes is not None:
+			prefixes = tuple(prefixes)
+			command.extend([str(CommandCreateParameters.PREFIX), len(prefixes), *prefixes])
+		if filter is not None:
+			command.extend([str(CommandCreateParameters.FILTER), str(filter)])
+		if language is not None:
+			command.extend([str(CommandCreateParameters.LANGUAGE), str(language)])
+		if language_field is not None:
+			command.extend([str(CommandCreateParameters.LANGUAGE_FIELD), str(language_field)])
+		if payload_field is not None:
+			command.extend([str(CommandCreateParameters.PAYLOAD_FIELD), str(payload_field)])
+		if score is not None:
+			score = float(score)
+			if score < 0 or score > 1:
+				raise ValueError(f'score must be between 0.0 and 1.0, got {score}')
+			command.extend([str(CommandCreateParameters.SCORE), str(score)])
+		if score_field is not None:
+			command.extend([str(CommandCreateParameters.SCORE_FIELD), str(score_field)])
+		if stopwords is not None:
+			stopwords = tuple(stopwords)
+			command.extend([str(CommandCreateParameters.STOPWORDS), len(stopwords), *stopwords])
+		if temporary is not None:
+			command.extend([str(CommandCreateParameters.TEMPORARY), int(temporary)])
+		if flags is not None:
+			if CreateFlags.MAX_TEXT_FIELDS in flags:
+				command.append(str(CommandCreateParameters.MAXTEXTFIELDS))
+			if CreateFlags.NO_FIELDS in flags:
+				command.append(str(CommandCreateParameters.NOFIELDS))
+			if CreateFlags.NO_FREQUENCIES in flags:
+				command.append(str(CommandCreateParameters.NOFREQS))
+			if CreateFlags.NO_HIGHLIGHTS in flags:
+				command.append(str(CommandCreateParameters.NOHL))
+			if CreateFlags.NO_OFFSETS in flags:
+				command.append(str(CommandCreateParameters.NOOFFSETS))
+			if CreateFlags.SKIP_INITIAL_SCAN in flags:
+				command.append(str(CommandCreateParameters.SKIPINITIALSCAN))
+
+		command.append(str(CommandCreateParameters.SCHEMA))
+		f: Field
+		x: Any
+		command.extend([x for f in fields for x in f])
+		LOG.debug(f'executing command: {" ".join(map(str, command))}')
+		return self.execute(*command, error_func=_check_index_exists_error)
 
 
 class FTCommandsMixin(RedicalBase):

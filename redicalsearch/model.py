@@ -1,5 +1,18 @@
 from datetime import datetime
-from typing import cast, Any, Dict, Generic, List, Mapping, Sequence, Tuple, Type, TypeVar, Union, TYPE_CHECKING
+from typing import (
+	cast,
+	Any,
+	Dict,
+	Generic,
+	List,
+	Mapping,
+	Sequence,
+	Tuple,
+	Type,
+	TypeVar,
+	Union,
+	TYPE_CHECKING,
+)
 
 from pydantic import root_validator, validator, BaseModel, Field
 

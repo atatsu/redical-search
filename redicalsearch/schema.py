@@ -1,13 +1,35 @@
+from __future__ import annotations
+
+from abc import abstractmethod, ABC
 from enum import auto, unique, Enum, Flag
-from typing import Any, ClassVar, List, Optional, Type, Union
+from typing import (
+	cast,
+	Any,
+	ClassVar,
+	Dict,
+	List,
+	Mapping,
+	Optional,
+	Sequence,
+	Tuple,
+	Type,
+	Union,
+)
 
 from .const import FieldParameters, FieldTypes
+from .option import CreateFlags, Languages, Structures
 
 __all__: List[str] = [
 	'FieldFlags',
 	'GeoField',
+	'IndexOptions',
 	'NumericField',
 	'PhoneticMatchers',
+	'Schema',
+	'SchemaGeoField',
+	'SchemaNumericField',
+	'SchemaTagField',
+	'SchemaTextField',
 	'TagField',
 	'TextField',
 ]
@@ -180,3 +202,160 @@ class TextField(Field):
 	NO_INDEX: ClassVar[FieldFlags] = FieldFlags.NO_INDEX
 	NO_STEM: ClassVar[FieldFlags] = FieldFlags.NO_STEM
 	SORTABLE: ClassVar[FieldFlags] = FieldFlags.SORTABLE
+
+
+class SchemaField(ABC):
+	name: str
+
+	@abstractmethod
+	def field(self) -> Field:
+		pass
+
+	def __set_name__(self, owner: Type[Any], name: str) -> None:
+		self.name = name
+
+
+class SchemaGeoField(SchemaField):
+	flags: Optional[FieldFlags]
+
+	def __init__(self, flags: Optional[FieldFlags] = None) -> None:
+		self.flags = flags
+
+	def field(self) -> Field:
+		return GeoField(self.name, flags=self.flags)
+
+	NO_INDEX: ClassVar[FieldFlags] = FieldFlags.NO_INDEX
+
+
+class SchemaNumericField(SchemaField):
+	flags: Optional[FieldFlags]
+
+	def __init__(self, flags: Optional[FieldFlags] = None) -> None:
+		self.flags = flags
+
+	def field(self) -> Field:
+		return NumericField(self.name, flags=self.flags)
+
+	NO_INDEX: ClassVar[FieldFlags] = FieldFlags.NO_INDEX
+	SORTABLE: ClassVar[FieldFlags] = FieldFlags.SORTABLE
+
+
+class SchemaTagField(SchemaField):
+	flags: Optional[FieldFlags]
+	separator: Optional[str]
+
+	def __init__(
+		self,
+		flags: Optional[FieldFlags],
+		*,
+		separator: Optional[str] = None
+	) -> None:
+		self.flags = flags
+		self.separator = separator
+
+	def field(self) -> Field:
+		return TagField(self.name, flags=self.flags, separator=self.separator)
+
+	NO_INDEX: ClassVar[FieldFlags] = FieldFlags.NO_INDEX
+	SORTABLE: ClassVar[FieldFlags] = FieldFlags.SORTABLE
+
+
+class SchemaTextField(SchemaField):
+	flags: Optional[FieldFlags]
+	phonetic_matcher: Optional[PhoneticMatchers]
+	weight: Optional[Union[int, float]]
+
+	def __init__(
+		self,
+		flags: Optional[FieldFlags] = None,
+		*,
+		phonetic_matcher: Optional[PhoneticMatchers] = None,
+		weight: Optional[Union[int, float]] = None
+	) -> None:
+		self.flags = flags
+		self.phonetic_matcher = phonetic_matcher
+		self.weight = weight
+
+	def field(self) -> Field:
+		return TextField(self.name, flags=self.flags, phonetic_matcher=self.phonetic_matcher, weight=self.weight)
+
+	PhoneticMatchers: ClassVar[Type[PhoneticMatchers]] = PhoneticMatchers
+	NO_INDEX: ClassVar[FieldFlags] = FieldFlags.NO_INDEX
+	NO_STEM: ClassVar[FieldFlags] = FieldFlags.NO_STEM
+	SORTABLE: ClassVar[FieldFlags] = FieldFlags.SORTABLE
+
+
+class IndexOptions:
+	on: ClassVar[Structures] = Structures.HASH
+	prefixes: ClassVar[Optional[Sequence[str]]] = None
+	filter: ClassVar[Optional[str]] = None
+	flags: ClassVar[Optional[CreateFlags]] = None
+	language: ClassVar[Optional[Languages]] = None
+	language_field: ClassVar[Optional[str]] = None
+	payload_field: ClassVar[Optional[str]] = None
+	score: ClassVar[Optional[Union[float, int]]] = None
+	score_field: ClassVar[Optional[str]] = None
+	stopwords: ClassVar[Optional[Sequence[str]]] = None
+	temporary: ClassVar[Optional[int]] = None
+
+
+class SchemaMeta(type):
+	__fields__: Tuple[str, ...]
+
+	def __new__(
+		meta: Type[SchemaMeta], name: str, bases: Tuple[type, ...], ns: Mapping[str, Any], **kwargs: Any
+	) -> SchemaMeta:
+		new_ns: Dict[str, Any] = dict(ns)
+		fields: List[str] = []
+
+		attr_name: str
+		attr_value: Any
+
+		base: Type[Any]
+		for base in bases:
+			if not issubclass(base, Schema):
+				continue
+			for attr_name, attr_value in vars(base).items():
+				if not isinstance(attr_value, SchemaField):
+					continue
+				fields.append(attr_name)
+
+		for attr_name, attr_value in new_ns.items():
+			if not isinstance(attr_value, SchemaField):
+				continue
+			fields.append(attr_name)
+
+		new_ns['__fields__'] = tuple(fields)
+		return cast(SchemaMeta, super().__new__(cast(Type[type], meta), name, bases, new_ns))
+
+
+class Schema(metaclass=SchemaMeta):
+	Options: ClassVar[Type[IndexOptions]]
+	__fields__: ClassVar[Tuple[str]]
+
+	@classmethod
+	def _get_fields(cls) -> List[Field]:
+		field_name: str
+		fields: List[Field] = []
+		for field_name in cls.__fields__:
+			schema_field: SchemaField = getattr(cls, field_name)
+			fields.append(schema_field.field())
+		return fields
+
+	@classmethod
+	def _get_options(cls) -> Dict[str, Any]:
+		opt_cls: IndexOptions = getattr(cls, 'Options', IndexOptions)
+		options: Dict[str, Any] = dict(
+			on=opt_cls.on,
+			prefixes=opt_cls.prefixes,
+			filter=opt_cls.filter,
+			flags=opt_cls.flags,
+			language=opt_cls.language,
+			language_field=opt_cls.language_field,
+			payload_field=opt_cls.payload_field,
+			score=opt_cls.score,
+			score_field=opt_cls.score_field,
+			stopwords=opt_cls.stopwords,
+			temporary=opt_cls.temporary,
+		)
+		return options
