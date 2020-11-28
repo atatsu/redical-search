@@ -246,7 +246,7 @@ class SchemaTagField(SchemaField):
 
 	def __init__(
 		self,
-		flags: Optional[FieldFlags],
+		flags: Optional[FieldFlags] = None,
 		*,
 		separator: Optional[str] = None
 	) -> None:
