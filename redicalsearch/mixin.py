@@ -192,7 +192,7 @@ class Commands(RedicalBase):
 			index_name: The name of the index to retrieve info for.
 		"""
 		command: List[str] = [str(FullTextCommands.INFO), index_name]
-		return self.execute(*command, conversion_func=_convert_index_info, error_func=_check_unknown_index_error)
+		return self.execute(*command, transform=_convert_index_info, error_func=_check_unknown_index_error)
 
 	@overload
 	def search(
@@ -439,7 +439,7 @@ class Commands(RedicalBase):
 
 		command.extend([str(CommandSearchParameters.LIMIT), offset, limit])
 		LOG.debug(f'executing command: {" ".join(map(str, command))}')
-		return self.execute(*command, conversion_func=_convert_search_result(offset, limit, document_cls))
+		return self.execute(*command, transform=_convert_search_result(offset, limit, document_cls))
 
 	def _create_from_schema(self, index_name: str, schema: Type[S]) -> Awaitable[bool]:
 		options: Dict[str, Any] = schema._get_options()

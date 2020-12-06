@@ -4,7 +4,7 @@ from redicalsearch.mixin import _check_unknown_index_error, _convert_index_info
 def test_info(mocked_redicalsearch):
 	mocked_redicalsearch.ft.info('myindex')
 	mocked_redicalsearch.resource.execute.assert_called_once_with(
-		'FT.INFO', 'myindex', conversion_func=_convert_index_info, error_func=_check_unknown_index_error
+		'FT.INFO', 'myindex', transform=_convert_index_info, error_func=_check_unknown_index_error
 	)
 
 
