@@ -9,11 +9,15 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
+    container_name: redical-search-unit-tests
     entrypoint:
       - sh
       - -c
-      - "poetry install && script/test-continuous"
+      - script/test-continuous
     environment:
+      # mypy can't seem to find the `py.typed` file now that `redical` is explicitly being
+      # listed as a dependency in "develop" mode. This is a work around for now.
+      - MYPYPATH=$MYPYPATH:/code/lib/redical
       - PYTHONASYNCIODEBUG=1
     restart: on-failure
     tty: true
@@ -25,13 +29,17 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
+    container_name: redical-search-integration-tests
     depends_on:
       - redis
     entrypoint:
       - sh
       - -c
-      - "poetry install && script/test-integration-continuous"
+      - script/test-integration-continuous
     environment:
+      # mypy can't seem to find the `py.typed` file now that `redical` is explicitly being
+      # listed as a dependency in "develop" mode. This is a work around for now.
+      - MYPYPATH=$MYPYPATH:/code/lib/redical
       - PYTHONASYNCIODEBUG=1
       - REDICALSEARCH_REDIS_URI=redis://redis:6379
     restart: on-failure
@@ -40,6 +48,7 @@ services:
       - ./:/code:rw
 
   redis:
+    container_name: redical-search-redis
     image: redislabs/redisearch:latest
     ports:
       - ${REDICALSEARCH_REDIS_PORT:-6479}:6379

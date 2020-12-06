@@ -281,4 +281,4 @@ from redicalsearch import GeoFilter, Highlight, Languages, NumericFilter, Search
 @mock.patch('redicalsearch.mixin._convert_search_result')
 async def test_search(__convert_search_result, args, kwargs, expected, mocked_redicalsearch):
 	mocked_redicalsearch.ft.search('shakespeare', *args, **kwargs)
-	mocked_redicalsearch.resource.execute.assert_called_once_with(*expected, conversion_func=__convert_search_result())
+	mocked_redicalsearch.resource.execute.assert_called_once_with(*expected, transform=__convert_search_result())
