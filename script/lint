@@ -14,9 +14,9 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-echo -e "${blue}===> Linting files...${normal}"
+echo "${blue}===> Linting files...${normal}"
 
-echo -en ${bold}${red}
+echo -n ${bold}${red}
 if [ -n "$1" ]; then
   flake8 "$1"
   result=$?
@@ -24,13 +24,13 @@ else
   flake8 redicalsearch/ && flake8 tests/
   result=$?
 fi
-echo -en ${normal}
+echo -n ${normal}
 
 if [ "$result" -eq "0" ]; then
-  echo -e ${bold}${green}Success ${normal}
+  echo ${bold}${green}Success ${normal}
 fi
 
-echo -e "${blue}<=== Done.${normal}"
+echo "${blue}<=== Done.${normal}"
 
 if [ "${result}" -ne "0" ]; then
   exit 1

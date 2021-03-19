@@ -122,6 +122,8 @@ class NumericField(Field):
 
 class TagField(Field):
 	"""
+	Defines a tag field in a schema definition.
+
 	Args:
 		name: A name for this field.
 		flags: The following flags are accepted:
@@ -130,6 +132,8 @@ class TagField(Field):
 				of this field.
 		separator: Indicates how the text contained in this field is to be split into
 			individual tags. The value **must** be a single character.
+
+			Note: Defaults to `,`.
 	"""
 	def __init__(self, name: str, /, flags: Optional[FieldFlags] = None, *, separator: Optional[str] = None) -> None:
 		super().__init__(name)
@@ -216,6 +220,13 @@ class SchemaField(ABC):
 
 
 class SchemaGeoField(SchemaField):
+	"""
+	Defines a geo-indexing field in a schema definition class.
+
+	Args:
+		flags: The following flags are accepted:
+			* `FieldFlags.NO_INDEX` - If set this field will not be indexed.
+	"""
 	flags: Optional[FieldFlags]
 
 	def __init__(self, flags: Optional[FieldFlags] = None) -> None:
@@ -228,6 +239,15 @@ class SchemaGeoField(SchemaField):
 
 
 class SchemaNumericField(SchemaField):
+	"""
+	Defines a numeric field in a schema definition class.
+
+	Args:
+		flags: The following flags are accepted:
+			* `FieldFlags.NO_INDEX` - If set this field will not be indexed.
+			* `FieldFlags.SORTABLE` - If set search results may be sorted by the value
+				of this field.
+	"""
 	flags: Optional[FieldFlags]
 
 	def __init__(self, flags: Optional[FieldFlags] = None) -> None:
@@ -241,6 +261,19 @@ class SchemaNumericField(SchemaField):
 
 
 class SchemaTagField(SchemaField):
+	"""
+	Defines a tag field in a schema definition class.
+
+	Args:
+		flags: The following flags are accepted:
+			* `FieldFlags.NO_INDEX` - If set this field will not be indexed.
+			* `FieldFlags.SORTABLE` - If set search results may be sorted by the value
+				of this field.
+		separator: Indicates how the text contained in this field is to be split into
+			individual tags. The value **must** be a single character.
+
+			Note: Defaults to `,`.
+	"""
 	flags: Optional[FieldFlags]
 	separator: Optional[str]
 
@@ -261,6 +294,29 @@ class SchemaTagField(SchemaField):
 
 
 class SchemaTextField(SchemaField):
+	"""
+	Defines a text field in a schema definition.
+
+	Args:
+		flags: The following flags are accepted:
+			* `FieldFlags.NO_INDEX` - If set this field will not be indexed.
+			* `FieldFlags.NO_STEM` - If set will disable stemming (adding the base form of a word
+				to the index). In other words, if set this field will only support exact,
+				word-for-word matches.
+			* `FieldFlags.SORTABLE` - If set search results may be sorted by the value
+				of this field.
+		phonetic_matcher: If supplied this field will have phonetic mathing on it in
+			searches by default. The passed argument specifies the phonetic algorithm and
+			language used. The following matchers are supported:
+				* `PhoneticMatchers.ENGLISH`
+				* `PhoneticMatchers.FRENCH`
+				* `PhoneticMatchers.PORTUGUESE`
+				* `PhoneticMatchers.SPANISH`
+		weight: Declares the importance of this field when calculating result accuracy. Defaults to
+			`1` if not specified.
+
+			Note: This is a multiplication factor.
+	"""
 	flags: Optional[FieldFlags]
 	phonetic_matcher: Optional[PhoneticMatchers]
 	weight: Optional[Union[int, float]]
@@ -286,17 +342,85 @@ class SchemaTextField(SchemaField):
 
 
 class IndexOptions:
+	"""
+	Include with a schema definition class to control additional behaviors
+	of the created index. Available options include:
+		* `on`
+		* `prefixes`
+		* `filter`
+		* `flags`
+		* `language`
+		* `language_field`
+		* `payload_field`
+		* `score`
+		* `score_field`
+		* `stopwords`
+		* `temporary`
+
+	Example:
+		class MySchema(Schema):
+			class Options(IndexOptions):
+				prefixes = ('myindex:',)
+				flags = CreateFlags.NO_FREQUENCIES | CreateFlags.NO_HIGHLIGHTS
+				temporary = 600
+	"""
 	on: ClassVar[Structures] = Structures.HASH
+	"""
+	Currently only supports `Structures.HASH` (default).
+	"""
 	prefixes: ClassVar[Optional[Sequence[str]]] = None
+	"""
+	Tells the index which keys it should index. You can add several prefixes
+	to the index. Since the argument is optional, the default is `*` (all keys).
+	"""
 	filter: ClassVar[Optional[str]] = None
+	"""
+	Supply a filter expression with the full *RediSearch* aggregation expression
+	language. It is possible to use `@__key` to access the key that was just
+	added/changed. A field can be used to set field name by passing
+	`FILTER @indexName=="myindexname"`.
+	"""
 	flags: ClassVar[Optional[CreateFlags]] = None
 	language: ClassVar[Optional[Languages]] = None
+	"""
+	If set indicates the default language for documents in the index.
+	Defaults to `Languages.ENGLISH`.
+	"""
 	language_field: ClassVar[Optional[str]] = None
+	"""
+	If set indicates the document field that should be used as the document language.
+	"""
 	payload_field: ClassVar[Optional[str]] = None
+	"""
+	If set indicates the document field that should be used as a binary safe
+	payload string to the document that can be evaluated at query time by a custom
+	scoring function, or retrieved to the client.
+	"""
 	score: ClassVar[Optional[Union[float, int]]] = None
+	"""
+	If set indicates the default score for documents in the index.
+	Default score is `1.0`.
+	"""
 	score_field: ClassVar[Optional[str]] = None
+	"""
+	If set indicates the document field that should be used as the document's rank
+	based on the user's ranking. Ranking must be between `0.0` and `1.0`. If not
+	set the default score is `1`.
+	"""
 	stopwords: ClassVar[Optional[Sequence[str]]] = None
+	"""
+	If supplied the index is set with a custom stopword list to be ignored during
+	indexing and search time.
+	"""
 	temporary: ClassVar[Optional[int]] = None
+	"""
+	Create a lightweight temporary index which will expire after the specified period
+	of inactivity (in seconds). The internal idle timer is reset whenever the index
+	is searched or added to. Because such indexes are lightweight you can create
+	thousands of such indexes without negative performance implications and therefore
+	you should consider using `CreateFlags.SKIP_INITIAL_SCAN` to avoid costly
+	scanning.
+	"""
 
 
 class SchemaMeta(type):

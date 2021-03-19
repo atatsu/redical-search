@@ -68,7 +68,7 @@ class IndexInfo(BaseModel):
 
 
 class Document(BaseModel):
-	id: str
+	docid: str
 
 	def hset(
 		self,
@@ -87,7 +87,7 @@ class Document(BaseModel):
 				dictionary
 			* Any `bool` values will be converted to integers in the resulting dictionary
 			* Any `datetime` values will be converted to unix timestamps (milliseconds)
-			* The `id` attribute is removed from the resulting dictionary
+			* The `docid` attribute is removed from the resulting dictionary
 
 		Note: All keyword parameters are the same as those for pydantic's `BaseModel#dict`.
 
@@ -121,7 +121,7 @@ class Document(BaseModel):
 				# FIXME: Maybe don't do this if the datetime is naive?
 				d[attr] = int(d[attr].timestamp() * 1000)
 				continue
-		del d['id']
+		del d['docid']
 		return d
 
 

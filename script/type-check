@@ -11,7 +11,7 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-echo -e "${blue}===> Type-checking files...${normal}"
+echo "${blue}===> Type-checking files...${normal}"
 
 if [ -n "$1" ]; then
   mypy "$1"
@@ -19,4 +19,4 @@ else
   mypy redicalsearch
 fi
 
-echo -e "${blue}<=== Done.${normal}"
+echo "${blue}<=== Done.${normal}"

@@ -9,7 +9,7 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-echo -e "${blue}===> Cleaning up files...${normal}"
+echo "${blue}===> Cleaning up files...${normal}"
 
 rm -rf .mypy_cache \
   && rm -rf .pytest_cache \
@@ -19,4 +19,4 @@ rm -rf .mypy_cache \
   && rm -rf *.egg-info \
   && find . -name "__pycache__" -type d -exec rm -rf {} +;
 
-echo -e "${blue}<=== Done.${normal}"
+echo "${blue}<=== Done.${normal}"

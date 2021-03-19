@@ -72,11 +72,11 @@ class Geo:
 		return f'{self.longitude},{self.latitude}'
 
 
-class GeoFilterUnits(Enum):
-	FEET: str = 'ft'
-	KILOMETERS: str = 'km'
-	METERS: str = 'm'
-	MILES: str = 'mi'
+class GeoFilterUnits(str, Enum):
+	FEET = 'ft'
+	KILOMETERS = 'km'
+	METERS = 'm'
+	MILES = 'mi'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -113,25 +113,25 @@ class Highlight(BaseModel):
 
 
 @unique
-class Languages(Enum):
-	ARABIC: str = 'arabic'
-	CHINESE: str = 'chinese'
-	DANISH: str = 'danish'
-	DUTCH: str = 'dutch'
-	ENGLISH: str = 'english'
-	FINNISH: str = 'finnish'
-	FRENCH: str = 'french'
-	GERMAN: str = 'german'
-	HUNGARIAN: str = 'hungarian'
-	ITALIAN: str = 'italian'
-	NORWEGIAN: str = 'norwegian'
-	PORTUGUESE: str = 'portuguese'
-	ROMANIAN: str = 'romanian'
-	RUSSIAN: str = 'russian'
-	SPANISH: str = 'spanish'
-	SWEDISH: str = 'swedish'
-	TAMIL: str = 'tamil'
-	TURKISH: str = 'turkish'
+class Languages(str, Enum):
+	ARABIC = 'arabic'
+	CHINESE = 'chinese'
+	DANISH = 'danish'
+	DUTCH = 'dutch'
+	ENGLISH = 'english'
+	FINNISH = 'finnish'
+	FRENCH = 'french'
+	GERMAN = 'german'
+	HUNGARIAN = 'hungarian'
+	ITALIAN = 'italian'
+	NORWEGIAN = 'norwegian'
+	PORTUGUESE = 'portuguese'
+	ROMANIAN = 'romanian'
+	RUSSIAN = 'russian'
+	SPANISH = 'spanish'
+	SWEDISH = 'swedish'
+	TAMIL = 'tamil'
+	TURKISH = 'turkish'
 
 	def __str__(self) -> str:
 		return str(self.value)
@@ -172,8 +172,8 @@ class SearchFlags(Flag):
 
 
 @unique
-class Structures(Enum):
-	HASH: str = 'HASH'
+class Structures(str, Enum):
+	HASH = 'HASH'
 
 	def __str__(self) -> str:
 		return str(self.value)

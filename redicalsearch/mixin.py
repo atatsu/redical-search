@@ -72,7 +72,7 @@ def _convert_search_result(
 		# massage the results into the following format:
 		# [
 		#   {
-		#     'id': '<id>',
+		#     'docid': '<id>',
 		#     '<field1>': <value1>,
 		#     '<field2>': <value2>,
 		#     ...
@@ -80,7 +80,7 @@ def _convert_search_result(
 		# ]
 		formatted: List[Dict[str, Any]] = [
 			dict(
-				id=response[x],
+				docid=response[x],
 				**dict(_document_cls=document_cls, **{
 					response[x + 1][y]: response[x + 1][y + 1] for y in range(0, len(response[x + 1]), 2)
 				})

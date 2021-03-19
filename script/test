@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 export PYTHONASYNCIODEBUG=1
 export PYTHONWARNINGS=default
 
-echo -e "${blue}===> Running tests...${normal}"
+echo "${blue}===> Running tests...${normal}"
 
 if [ $(ls tests | wc -l) -eq 0 ]; then
   echo "${red}No tests found.${normal}"
@@ -27,4 +27,4 @@ else
   fi
 fi
 
-echo -e "${blue}<=== Done.${normal}"
+echo "${blue}<=== Done.${normal}"
